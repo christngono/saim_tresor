@@ -1,0 +1,17 @@
+{
+  "name": "saim-treasury",
+  "private": true,
+  "version": "0.1.0",
+  "description": "SAIM Trésorerie — agent IA de gestion financière (SYSCOHADA révisé)",
+  "packageManager": "pnpm@9.0.0",
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "db:generate": "pnpm --filter @saim/database generate",
+    "db:migrate": "pnpm --filter @saim/database migrate",
+    "db:rls": "pnpm --filter @saim/database rls"
+  },
+  "devDependencies": {
+    "turbo": "^2.0.0"
+  }
+}

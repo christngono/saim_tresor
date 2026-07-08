@@ -1,0 +1,45 @@
+{
+  "entreprise": {
+    "raisonSociale": "ETS SAWA DISTRIBUTION SARL",
+    "niu": "M071812345678P",
+    "rccm": "RC/DLA/2019/B/1234",
+    "type": "PME_PRIVEE",
+    "deviseBase": "XAF"
+  },
+  "utilisateur": {
+    "email": "comptable@sawa-distribution.cm",
+    "nom": "Comptable Démo",
+    "role": "COMPTABLE"
+  },
+  "compteBancaire": {
+    "banque": "Afriland First Bank",
+    "numeroCompte": "10005-00012-45678901234-56",
+    "intitule": "SAWA DISTRIBUTION - Compte courant",
+    "compteSyscohada": "521",
+    "devise": "XAF"
+  },
+  "planComptable": [
+    { "numero": "521", "intitule": "Banques locales", "classe": 5 },
+    { "numero": "627", "intitule": "Services bancaires", "classe": 6 }
+  ],
+  "releve": {
+    "periodeDebut": "2026-06-01",
+    "periodeFin": "2026-06-30",
+    "soldeInitial": "0",
+    "soldeFinal": "3182500"
+  },
+  "resultatAttendu": {
+    "matches_attendus": 5,
+    "ecarts": {
+      "FRAIS_BANCAIRE": 2,
+      "VIREMENT_NON_COMPTABILISE": 1,
+      "CHEQUE_NON_DEBITE": 1,
+      "DOUBLON": 1
+    },
+    "etat_syscohada": {
+      "residu": "0",
+      "rapproche": true,
+      "commentaire": "Le doublon (ligne relevé GAMMA importée 2 fois) est exclu de l'ajustement et signalé à l'humain ; le solde reste rapproché car ce doublon n'entre pas dans le solde final réel de la banque."
+    }
+  }
+}

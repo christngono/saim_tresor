@@ -1,0 +1,7 @@
+date_ecriture,journal,piece,compte,libelle,debit,credit
+2026-06-03,BQ,,521,Règlement client ALPHA SARL,1500000,0
+2026-06-05,BQ,CHQ,521,Paiement fournisseur BETA SA,0,800000
+2026-06-12,BQ,,521,Virement reçu client GAMMA,2300000,0
+2026-06-18,BQ,CHQ004501,521,Chèque n°004501 fournisseur OMEGA,0,1250000
+2026-06-25,BQ,,521,Règlement client THETA SARL,950000,0
+2026-06-28,BQ,CHQ004512,521,Chèque n°004512 fournisseur SIGMA,0,450000

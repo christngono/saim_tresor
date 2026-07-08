@@ -1,0 +1,391 @@
+// SAIM Trésorerie — source de vérité unique du modèle de données.
+// Génère le client TS (Next.js) ET le client Python (FastAPI) : aucune dérive.
+generator clientJs {
+  provider = "prisma-client-js"
+}
+
+generator clientPy {
+  provider             = "prisma-client-py"
+  interface            = "asyncio"
+  recursive_type_depth = 5
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────── TENANT & IDENTITÉ ───────────────
+model Entreprise {
+  id            String         @id @default(cuid())
+  raisonSociale String
+  niu           String? // N° Identifiant Unique fiscal (Cameroun)
+  rccm          String? // Registre du Commerce et du Crédit Mobilier
+  type          TypeEntreprise
+  deviseBase    String         @default("XAF")
+  createdAt     DateTime       @default(now())
+
+  membres          MembreEntreprise[]
+  comptesBancaires CompteBancaire[]
+  comptesComptables CompteComptable[]
+  ecritures        EcritureComptable[]
+  factures         Facture[]
+  releves          ReleveBancaire[]
+  rapprochements   Rapprochement[]
+  tfts             TFT[]
+  documents        DocumentImporte[]
+  auditLogs        AuditLog[]
+
+  @@map("entreprises")
+}
+
+model Utilisateur {
+  id        String             @id @default(cuid())
+  email     String             @unique
+  nom       String
+  hashPwd   String?
+  createdAt DateTime           @default(now())
+  membres   MembreEntreprise[]
+
+  @@map("utilisateurs")
+}
+
+model MembreEntreprise {
+  id            String      @id @default(cuid())
+  utilisateur   Utilisateur @relation(fields: [utilisateurId], references: [id])
+  utilisateurId String
+  entreprise    Entreprise  @relation(fields: [entrepriseId], references: [id])
+  entrepriseId  String
+  role          Role
+
+  @@unique([utilisateurId, entrepriseId])
+  @@map("membres_entreprise")
+}
+
+// ─────────────── BANCAIRE & COMPTABLE ───────────────
+model CompteBancaire {
+  id             String          @id @default(cuid())
+  entrepriseId   String
+  entreprise     Entreprise      @relation(fields: [entrepriseId], references: [id])
+  banque         String
+  numeroCompte   String
+  intitule       String
+  compteSyscohada String         @default("521") // compte comptable de rattachement
+  devise         String          @default("XAF")
+  releves        ReleveBancaire[]
+  rapprochements Rapprochement[]
+
+  @@index([entrepriseId])
+  @@map("comptes_bancaires")
+}
+
+model ReleveBancaire {
+  id               String           @id @default(cuid())
+  entrepriseId     String
+  entreprise       Entreprise       @relation(fields: [entrepriseId], references: [id])
+  compteBancaireId String
+  compteBancaire   CompteBancaire   @relation(fields: [compteBancaireId], references: [id])
+  documentId       String?
+  document         DocumentImporte? @relation(fields: [documentId], references: [id])
+  periodeDebut     DateTime
+  periodeFin       DateTime
+  soldeInitial     Decimal          @db.Decimal(18, 2)
+  soldeFinal       Decimal          @db.Decimal(18, 2)
+  source           SourceDonnee
+  statut           StatutImport     @default(EXTRAIT)
+  createdAt        DateTime         @default(now())
+  lignes           LigneReleve[]
+
+  @@index([entrepriseId])
+  @@map("releves_bancaires")
+}
+
+model LigneReleve {
+  id                  String               @id @default(cuid())
+  releveId            String
+  releve              ReleveBancaire       @relation(fields: [releveId], references: [id])
+  dateOperation       DateTime
+  dateValeur          DateTime?
+  libelle             String
+  reference           String?
+  debit               Decimal?             @db.Decimal(18, 2) // sortie de fonds (vue banque)
+  credit              Decimal?             @db.Decimal(18, 2) // entrée de fonds (vue banque)
+  confianceExtraction Float? // score IA si extrait, null sinon
+  matches             RapprochementMatch[]
+
+  @@index([releveId])
+  @@map("lignes_releve")
+}
+
+model CompteComptable {
+  id           String              @id @default(cuid())
+  entrepriseId String
+  entreprise   Entreprise          @relation(fields: [entrepriseId], references: [id])
+  numero       String // ex "521" banque, "401" fournisseurs, "627" frais bancaires
+  intitule     String
+  classe       Int
+  ecritures    EcritureComptable[]
+
+  @@unique([entrepriseId, numero])
+  @@map("comptes_comptables")
+}
+
+model EcritureComptable {
+  id           String               @id @default(cuid())
+  entrepriseId String
+  entreprise   Entreprise           @relation(fields: [entrepriseId], references: [id])
+  compteId     String
+  compte       CompteComptable      @relation(fields: [compteId], references: [id])
+  dateEcriture DateTime
+  journal      String // BQ, ACH, VTE, OD...
+  piece        String?
+  libelle      String
+  debit        Decimal              @default(0) @db.Decimal(18, 2)
+  credit       Decimal              @default(0) @db.Decimal(18, 2)
+  source       SourceDonnee
+  matches      RapprochementMatch[]
+
+  @@index([entrepriseId, dateEcriture])
+  @@map("ecritures_comptables")
+}
+
+// ─────────────── RAPPROCHEMENT (déterministe) ───────────────
+model Rapprochement {
+  id               String              @id @default(cuid())
+  entrepriseId     String
+  entreprise       Entreprise          @relation(fields: [entrepriseId], references: [id])
+  compteBancaireId String
+  compteBancaire   CompteBancaire      @relation(fields: [compteBancaireId], references: [id])
+  periodeDebut     DateTime
+  periodeFin       DateTime
+  soldeReleve      Decimal             @db.Decimal(18, 2)
+  soldeComptable   Decimal             @db.Decimal(18, 2)
+  ecart            Decimal             @db.Decimal(18, 2)
+  statut           StatutRapprochement @default(BROUILLON)
+  algoVersion      String // traçabilité du moteur de calcul
+  createdAt        DateTime            @default(now())
+  valideParId      String?
+  valideLe         DateTime?
+  matches          RapprochementMatch[]
+
+  @@index([entrepriseId])
+  @@map("rapprochements")
+}
+
+model RapprochementMatch {
+  id              String             @id @default(cuid())
+  rapprochementId String
+  rapprochement   Rapprochement      @relation(fields: [rapprochementId], references: [id])
+  ligneReleveId   String?
+  ligneReleve     LigneReleve?       @relation(fields: [ligneReleveId], references: [id])
+  ecritureId      String?
+  ecriture        EcritureComptable? @relation(fields: [ecritureId], references: [id])
+  scoreConfiance  Float // 0..1 (global pondéré)
+  scoreMontant    Float
+  scoreDate       Float
+  scoreLibelle    Float
+  methode         MethodeMatch
+  typeEcart       TypeEcart? // renseigné si ligne non rapprochée
+  statut          StatutMatch        @default(SUGGERE)
+  valideParId     String?
+  valideLe        DateTime?
+
+  @@index([rapprochementId])
+  @@map("rapprochement_matches")
+}
+
+// ─────────────── FACTURES & DSO (module 3) ───────────────
+model Facture {
+  id                  String            @id @default(cuid())
+  entrepriseId        String
+  entreprise          Entreprise        @relation(fields: [entrepriseId], references: [id])
+  sens                SensFacture
+  numero              String
+  tiers               String
+  dateEmission        DateTime
+  dateEcheance        DateTime
+  montantHT           Decimal           @db.Decimal(18, 2)
+  montantTVA          Decimal           @default(0) @db.Decimal(18, 2)
+  montantTTC          Decimal           @db.Decimal(18, 2)
+  montantPaye         Decimal           @default(0) @db.Decimal(18, 2)
+  statut              StatutFacture     @default(EMISE)
+  documentId          String?
+  document            DocumentImporte?  @relation(fields: [documentId], references: [id])
+  source              SourceDonnee
+  confianceExtraction Float?
+  anomalies           AnomalieFacture[]
+  relances            Relance[]
+
+  @@index([entrepriseId, dateEcheance])
+  @@map("factures")
+}
+
+model AnomalieFacture {
+  id        String       @id @default(cuid())
+  factureId String
+  facture   Facture      @relation(fields: [factureId], references: [id])
+  type      TypeAnomalie
+  detail    String
+  resolue   Boolean      @default(false)
+
+  @@map("anomalies_facture")
+}
+
+model Relance {
+  id        String    @id @default(cuid())
+  factureId String
+  facture   Facture   @relation(fields: [factureId], references: [id])
+  niveau    Int
+  canal     String
+  envoyeeLe DateTime?
+  statut    String    @default("BROUILLON")
+
+  @@map("relances")
+}
+
+// ─────────────── TFT (module 2) ───────────────
+model TFT {
+  id           String              @id @default(cuid())
+  entrepriseId String
+  entreprise   Entreprise          @relation(fields: [entrepriseId], references: [id])
+  methode      MethodeTFT
+  periodeDebut DateTime
+  periodeFin   DateTime
+  donnees      Json // structure SYSCOHADA calculée (déterministe)
+  previsionnel Json? // glissant 30/60/90j
+  statut       StatutRapprochement @default(BROUILLON)
+  algoVersion  String
+  createdAt    DateTime            @default(now())
+  valideParId  String?
+  valideLe     DateTime?
+
+  @@map("tfts")
+}
+
+// ─────────────── DOCUMENTS & AUDIT ───────────────
+model DocumentImporte {
+  id           String           @id @default(cuid())
+  entrepriseId String
+  entreprise   Entreprise       @relation(fields: [entrepriseId], references: [id])
+  r2Key        String
+  nomOriginal  String
+  typeMime     String
+  taille       Int
+  categorie    CategorieDoc
+  uploadeParId String
+  createdAt    DateTime         @default(now())
+  releves      ReleveBancaire[]
+  factures     Facture[]
+
+  @@index([entrepriseId])
+  @@map("documents_importes")
+}
+
+model AuditLog {
+  id            String     @id @default(cuid())
+  entrepriseId  String
+  entreprise    Entreprise @relation(fields: [entrepriseId], references: [id])
+  acteurType    ActeurType
+  utilisateurId String? // null si acteur = IA
+  modeleIA      String? // ex "qwen2.5-vl", "groq/llama-3.3" si IA
+  action        String
+  entite        String
+  entiteId      String
+  avant         Json?
+  apres         Json?
+  horodatage    DateTime   @default(now())
+
+  @@index([entrepriseId, horodatage])
+  @@map("audit_logs")
+}
+
+// ─────────────── ENUMS ───────────────
+enum TypeEntreprise {
+  PME_PRIVEE
+  PARAPUBLIC
+}
+
+enum Role {
+  ADMIN
+  DAF
+  COMPTABLE
+  LECTEUR
+}
+
+enum SourceDonnee {
+  IMPORT_CSV
+  IMPORT_PDF
+  IA_EXTRACTION
+  MANUEL
+}
+
+enum StatutImport {
+  RECU
+  EXTRAIT
+  VALIDE
+  ERREUR
+}
+
+enum StatutRapprochement {
+  BROUILLON
+  EN_REVUE
+  VALIDE
+  EXPORTE
+}
+
+enum MethodeMatch {
+  AUTO
+  MANUEL
+}
+
+enum StatutMatch {
+  SUGGERE
+  VALIDE
+  REJETE
+  CORRIGE
+}
+
+enum TypeEcart {
+  FRAIS_BANCAIRE
+  DOUBLON
+  CHEQUE_NON_DEBITE
+  VIREMENT_NON_COMPTABILISE
+  ECART_MONTANT
+  AUTRE
+}
+
+enum SensFacture {
+  CLIENT
+  FOURNISSEUR
+}
+
+enum StatutFacture {
+  EMISE
+  PARTIELLE
+  PAYEE
+  EN_RETARD
+  LITIGE
+}
+
+enum TypeAnomalie {
+  DOUBLON
+  ECART_PRIX
+  RETARD
+  MONTANT_INCOHERENT
+}
+
+enum MethodeTFT {
+  DIRECTE
+  INDIRECTE
+}
+
+enum CategorieDoc {
+  RELEVE
+  FACTURE
+  GRAND_LIVRE
+}
+
+enum ActeurType {
+  HUMAIN
+  IA
+}

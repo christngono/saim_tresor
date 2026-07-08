@@ -1,0 +1,23 @@
+# Secrets — NE JAMAIS versionner
+.env
+.env.*
+!.env.example
+apps/web/.env.local
+
+# Dépendances / build
+node_modules/
+.next/
+.turbo/
+dist/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Prisma client généré
+packages/database/node_modules/
+**/generated/
+
+# OS
+.DS_Store
