@@ -195,3 +195,64 @@ export async function forecastTresorerie(
     "Prévisionnel indisponible",
   );
 }
+
+// ── Module 3 : Facturation / DSO ──
+export type FactureItem = {
+  id: string; sens: string; numero: string; tiers: string;
+  dateEcheance: string; montantTTC: string; montantPaye: string;
+  resteAPayer: string; statut: string;
+};
+
+export type Analyse = {
+  dso: {
+    date_reference: string; periode_jours: number;
+    encours_creances_ttc: string; chiffre_affaires_ttc: string; dso_jours: string;
+  };
+  anomalies: { facture_id: string; type: string; detail: string }[];
+};
+
+export type RelanceItem = {
+  id: string; facture_id: string; tiers: string; niveau: number;
+  jours_retard: number; montant_du: string; message: string; statut: string;
+};
+
+export async function listFactures(ctx: Ctx): Promise<FactureItem[]> {
+  return jsonOrThrow(
+    await fetch(`${API}/invoicing/factures`, { headers: headers(ctx), cache: "no-store" }),
+    "Factures indisponibles",
+  );
+}
+
+export async function analyserFactures(ctx: Ctx, date_reference: string): Promise<Analyse> {
+  return jsonOrThrow(
+    await fetch(`${API}/invoicing/analyse`, {
+      method: "POST", headers: headers(ctx),
+      body: JSON.stringify({ date_reference, periode_jours: 90 }),
+    }),
+    "Analyse impossible",
+  );
+}
+
+export async function genererRelances(
+  ctx: Ctx, date_reference: string,
+): Promise<{ relances: RelanceItem[] }> {
+  return jsonOrThrow(
+    await fetch(`${API}/invoicing/relances/generer`, {
+      method: "POST", headers: headers(ctx),
+      body: JSON.stringify({ date_reference, periode_jours: 90 }),
+    }),
+    "Génération des relances impossible",
+  );
+}
+
+export async function validerRelance(
+  ctx: Ctx, relance_id: string, decision: "ENVOYER" | "ANNULER",
+) {
+  return jsonOrThrow(
+    await fetch(`${API}/invoicing/relances/valider`, {
+      method: "POST", headers: headers(ctx),
+      body: JSON.stringify({ relance_id, decision }),
+    }),
+    "Validation impossible",
+  );
+}

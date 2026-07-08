@@ -15,7 +15,7 @@ Module complémentaire à SAIM Fiscal. Conforme **SYSCOHADA révisé**.
 |---|--------|------|
 | 1 | **Rapprochement bancaire** | ✅ implémenté |
 | 2 | **Tableaux de flux de trésorerie (TFT)** | ✅ implémenté |
-| 3 | Analyse de facturation / DSO | ⏳ à venir |
+| 3 | **Analyse de facturation / DSO** | ✅ implémenté |
 
 ## Architecture
 
@@ -126,3 +126,28 @@ cd apps/api && pytest tests/test_tft.py tests/test_forecast.py -v
 Sur le jeu de test : FTAO 2 200 000, FTAI −1 000 000, FTAF −500 000, variation
 +700 000 (contrôle 0) ; prévisionnel en **rupture à 30 j** (solde projeté
 −100 000 FCFA). Front : page `/tft` (TFT visuel + prévisionnel + alerte).
+
+## Module 3 — Analyse de facturation / DSO
+
+Extraction OCR de factures isolée (Together/Qwen2.5-VL + fallback Groq), puis
+cœur déterministe ([`core/invoicing/`](apps/api/app/core/invoicing/)) :
+
+- **Détection d'anomalies** : doublons, écarts de prix, montants incohérents
+  (HT + TVA ≠ TTC), retards de paiement.
+- **DSO** (Days Sales Outstanding) = encours créances / CA TTC × jours.
+- **Relances** de créances : brouillons à 3 niveaux d'escalade, **jamais
+  envoyés sans validation humaine** (statut BROUILLON → ENVOYEE/ANNULEE).
+
+```bash
+cd apps/api && pytest tests/test_invoicing.py -v
+```
+
+Sur le jeu de test (`fixtures/factures_analyse.csv`, réf. 2026-07-08) :
+DSO = **69,7 j**, 7 anomalies (4 retards, 1 doublon, 1 écart de prix, 1 montant
+incohérent), 4 relances (2× niveau 1, 2× niveau 2). Front : page `/factures`.
+
+## Tests déterministes (cœur métier, sans DB ni LLM)
+
+```bash
+cd apps/api && pytest -q     # 21 tests : rapprochement, TFT, prévisionnel, DSO/anomalies/relances
+```

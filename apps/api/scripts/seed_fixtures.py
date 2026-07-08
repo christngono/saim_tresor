@@ -109,15 +109,21 @@ async def main() -> None:
                 "debit": _dec(r["mouvement_debit"]), "credit": _dec(r["mouvement_credit"]),
                 "source": "IMPORT_CSV"})
 
-    with open(FIXTURES / "factures.csv") as f:
-        for r in csv.DictReader(f):
-            await db.facture.create(data={
-                "entrepriseId": ent.id, "sens": r["sens"], "numero": r["numero"],
-                "tiers": r["tiers"], "dateEmission": _dt(r["date_emission"]),
-                "dateEcheance": _dt(r["date_echeance"]),
-                "montantHT": _dec(r["montant_ht"]), "montantTVA": _dec(r["montant_tva"]),
-                "montantTTC": _dec(r["montant_ttc"]), "montantPaye": _dec(r["montant_paye"]),
-                "statut": "EMISE", "source": "IMPORT_CSV"})
+    async def _facture(r):
+        ttc, paye = _dec(r["montant_ttc"]), _dec(r["montant_paye"])
+        statut = "PAYEE" if paye >= ttc else "PARTIELLE" if paye > 0 else "EMISE"
+        await db.facture.create(data={
+            "entrepriseId": ent.id, "sens": r["sens"], "numero": r["numero"],
+            "tiers": r["tiers"], "dateEmission": _dt(r["date_emission"]),
+            "dateEcheance": _dt(r["date_echeance"]),
+            "montantHT": _dec(r["montant_ht"]), "montantTVA": _dec(r["montant_tva"]),
+            "montantTTC": ttc, "montantPaye": paye, "statut": statut, "source": "IMPORT_CSV"})
+
+    # Factures module 2 (prévisionnel) + module 3 (anomalies / DSO / relances).
+    for nom in ("factures.csv", "factures_analyse.csv"):
+        with open(FIXTURES / nom) as f:
+            for r in csv.DictReader(f):
+                await _facture(r)
 
     print("✅ Fixtures chargées.")
     print(f"   X-Entreprise-Id  : {ent.id}")
