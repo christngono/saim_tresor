@@ -1,0 +1,15 @@
+numero,intitule,classe,mouvement_debit,mouvement_credit
+101,Capital social,1,0,0
+11,Report à nouveau,1,0,0
+162,Emprunts établissements de crédit,1,500000,0
+241,Matériel et outillage,2,1000000,0
+2841,Amortissement du matériel,2,0,400000
+31,Stocks de marchandises,3,300000,0
+401,Fournisseurs,4,0,200000
+411,Clients,4,500000,0
+44,État et collectivités,4,200000,0
+521,Banques,5,700000,0
+601,Achats de marchandises,6,6000000,0
+641,Charges de personnel,6,2000000,0
+681,Dotations aux amortissements,6,400000,0
+701,Ventes de marchandises,7,0,11000000

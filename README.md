@@ -13,8 +13,8 @@ Module complémentaire à SAIM Fiscal. Conforme **SYSCOHADA révisé**.
 
 | # | Module | État |
 |---|--------|------|
-| 1 | **Rapprochement bancaire** | ✅ implémenté (cette tranche) |
-| 2 | Tableaux de flux de trésorerie (TFT) | ⏳ à venir |
+| 1 | **Rapprochement bancaire** | ✅ implémenté |
+| 2 | **Tableaux de flux de trésorerie (TFT)** | ✅ implémenté |
 | 3 | Analyse de facturation / DSO | ⏳ à venir |
 
 ## Architecture
@@ -108,3 +108,21 @@ upload (PDF/CSV/image)
 ```
 
 Toute étape est journalisée dans `audit_logs` avec son acteur (HUMAIN / IA).
+
+## Module 2 — Tableaux de flux de trésorerie (TFT)
+
+Moteur déterministe ([`core/cashflow/`](apps/api/app/core/cashflow/)) :
+
+- **TFT SYSCOHADA révisé** (méthode directe ou indirecte), construit depuis les
+  mouvements de la période. Invariant garanti et testé :
+  `FTAO + FTAI + FTAF == variation de trésorerie == Δ classe 5` (contrôle = 0).
+- **Prévisionnel glissant 30/60/90 j** à partir des factures en cours, avec
+  **alerte de rupture** de trésorerie (à valider par le DAF).
+
+```bash
+cd apps/api && pytest tests/test_tft.py tests/test_forecast.py -v
+```
+
+Sur le jeu de test : FTAO 2 200 000, FTAI −1 000 000, FTAF −500 000, variation
++700 000 (contrôle 0) ; prévisionnel en **rupture à 30 j** (solde projeté
+−100 000 FCFA). Front : page `/tft` (TFT visuel + prévisionnel + alerte).

@@ -144,3 +144,54 @@ export async function exporterRapprochement(ctx: Ctx, id: string): Promise<{ url
     "Export impossible",
   );
 }
+
+// ── Module 2 : TFT ──
+export type TFTOut = {
+  id: string;
+  statut: string;
+  methode: string;
+  algo_version: string;
+  donnees: Record<string, any>;
+  previsionnel: Record<string, any> | null;
+};
+
+export type Forecast = {
+  algo_version: string;
+  date_reference: string;
+  solde_initial: string;
+  seuil_alerte: string;
+  alerte_rupture: boolean;
+  rupture_horizon_jours: number | null;
+  points: {
+    horizon_jours: number;
+    date: string;
+    encaissements_prevus: string;
+    decaissements_prevus: string;
+    solde_projete: string;
+    rupture: boolean;
+  }[];
+};
+
+export async function buildTFT(
+  ctx: Ctx,
+  body: { periode_debut: string; periode_fin: string; tresorerie_ouverture: string; methode: string },
+): Promise<TFTOut> {
+  return jsonOrThrow(
+    await fetch(`${API}/cashflow/build`, {
+      method: "POST", headers: headers(ctx), body: JSON.stringify(body),
+    }),
+    "Construction du TFT impossible",
+  );
+}
+
+export async function forecastTresorerie(
+  ctx: Ctx,
+  body: { date_reference: string; solde_initial: string; seuil_alerte: string },
+): Promise<Forecast> {
+  return jsonOrThrow(
+    await fetch(`${API}/cashflow/forecast`, {
+      method: "POST", headers: headers(ctx), body: JSON.stringify(body),
+    }),
+    "Prévisionnel indisponible",
+  );
+}

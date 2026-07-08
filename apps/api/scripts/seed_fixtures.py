@@ -90,6 +90,35 @@ async def main() -> None:
                 "source": "IMPORT_CSV",
             })
 
+    # Module 2 (TFT) : balance comptable (mouvements de période) + factures.
+    async def _compte(numero, intitule, classe):
+        if numero not in comptes:
+            cc = await db.comptecomptable.create(data={
+                "entrepriseId": ent.id, "numero": numero,
+                "intitule": intitule, "classe": int(classe)})
+            comptes[numero] = cc.id
+        return comptes[numero]
+
+    with open(FIXTURES / "balance_comptable.csv") as f:
+        for r in csv.DictReader(f):
+            cid = await _compte(r["numero"], r["intitule"], r["classe"])
+            await db.ecriturecomptable.create(data={
+                "entrepriseId": ent.id, "compteId": cid,
+                "dateEcriture": _dt("2026-06-30"), "journal": "OD",
+                "libelle": f"Mouvement période — {r['intitule']}",
+                "debit": _dec(r["mouvement_debit"]), "credit": _dec(r["mouvement_credit"]),
+                "source": "IMPORT_CSV"})
+
+    with open(FIXTURES / "factures.csv") as f:
+        for r in csv.DictReader(f):
+            await db.facture.create(data={
+                "entrepriseId": ent.id, "sens": r["sens"], "numero": r["numero"],
+                "tiers": r["tiers"], "dateEmission": _dt(r["date_emission"]),
+                "dateEcheance": _dt(r["date_echeance"]),
+                "montantHT": _dec(r["montant_ht"]), "montantTVA": _dec(r["montant_tva"]),
+                "montantTTC": _dec(r["montant_ttc"]), "montantPaye": _dec(r["montant_paye"]),
+                "statut": "EMISE", "source": "IMPORT_CSV"})
+
     print("✅ Fixtures chargées.")
     print(f"   X-Entreprise-Id  : {ent.id}")
     print(f"   X-Utilisateur-Id : {user.id}")
