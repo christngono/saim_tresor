@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { signIn } from "../../../auth";
 
@@ -40,6 +41,9 @@ export default function LoginPage({
         <button className="w-full rounded bg-gray-900 px-4 py-2 text-sm text-white">
           Se connecter
         </button>
+        <p className="text-center text-xs text-gray-500">
+          Pas de compte ? <Link href="/register" className="text-blue-700">Créer une entreprise</Link>
+        </p>
       </form>
     </div>
   );
