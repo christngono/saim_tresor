@@ -1,6 +1,6 @@
 import { auth, signOut } from "../../auth";
 import { DashboardNav } from "../../components/DashboardNav";
-import { IconLogo, IconLogout } from "../../components/ui/icons";
+import { SaimMark, IconLogout } from "../../components/ui/icons";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const session = (await auth()) as (Record<string, unknown> & { user?: { name?: string; email?: string } }) | null;
@@ -12,7 +12,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     <div className="flex min-h-screen">
       <aside className="fixed inset-y-0 left-0 flex w-64 flex-col bg-slate-900 px-4 py-5">
         <div className="mb-8 flex items-center gap-2.5 px-2">
-          <span className="text-brand-400"><IconLogo className="h-7 w-7" /></span>
+          <SaimMark className="h-9 w-auto" />
           <div>
             <div className="font-semibold leading-tight text-white">SAIM Trésorerie</div>
             <div className="text-[11px] text-slate-400">SYSCOHADA révisé</div>

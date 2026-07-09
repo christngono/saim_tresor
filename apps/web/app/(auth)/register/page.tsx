@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { registerAction } from "./actions";
-import { IconLogo } from "../../../components/ui/icons";
+import { SaimMark } from "../../../components/ui/icons";
 
 const ERREURS: Record<string, string> = {
   champs: "Merci de remplir tous les champs (mot de passe : 6 caractères min.).",
@@ -12,7 +12,7 @@ export default function RegisterPage({ searchParams }: { searchParams: { error?:
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-900 via-slate-900 to-brand-900 p-4 py-10">
       <div className="w-full max-w-md">
         <div className="mb-6 flex items-center justify-center gap-2.5 text-white">
-          <span className="text-brand-400"><IconLogo className="h-8 w-8" /></span>
+          <SaimMark className="h-10 w-auto" />
           <div className="text-lg font-semibold">SAIM Trésorerie</div>
         </div>
         <form action={registerAction} className="space-y-4 rounded-2xl border border-slate-200 bg-white p-7 shadow-xl">

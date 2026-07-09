@@ -5,11 +5,11 @@ export default {
   theme: {
     extend: {
       colors: {
-        // Couleur de marque (teal — confiance + fraîcheur fintech).
+        // Couleur de marque (bleu SAIM, dérivée du logo #4BB8E8 → #1A7DB5).
         brand: {
-          50: "#f0fdfa", 100: "#ccfbf1", 200: "#99f6e4", 300: "#5eead4",
-          400: "#2dd4bf", 500: "#14b8a6", 600: "#0d9488", 700: "#0f766e",
-          800: "#115e59", 900: "#134e4a",
+          50: "#eef8fd", 100: "#d6eefb", 200: "#b0e0f5", 300: "#7fceee",
+          400: "#4bb8e8", 500: "#2a9fd6", 600: "#1a7db5", 700: "#176a9a",
+          800: "#175a82", 900: "#123f5c",
         },
       },
       fontFamily: {
