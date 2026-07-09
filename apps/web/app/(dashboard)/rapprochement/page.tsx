@@ -21,10 +21,16 @@ export default async function Page() {
     <div className="mx-auto max-w-4xl">
       <header className="mb-6 flex items-center justify-between">
         <h1 className="text-2xl font-bold">Rapprochements bancaires</h1>
-        <Link href="/rapprochement/nouveau"
-          className="rounded bg-gray-900 px-4 py-2 text-sm text-white">
-          Nouveau rapprochement
-        </Link>
+        <div className="flex gap-2">
+          <Link href="/rapprochement/importer"
+            className="rounded bg-gray-900 px-4 py-2 text-sm text-white">
+            Importer CSV (grand livre + relevé)
+          </Link>
+          <Link href="/rapprochement/nouveau"
+            className="rounded border px-4 py-2 text-sm">
+            Upload relevé (PDF/IA)
+          </Link>
+        </div>
       </header>
 
       {raps.length === 0 ? (

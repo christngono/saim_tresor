@@ -97,6 +97,33 @@ export async function uploadReleve(ctx: Ctx, compteBancaireId: string, fichier: 
   );
 }
 
+export async function importGrandLivre(ctx: Ctx, fichier: File) {
+  const fd = new FormData();
+  fd.append("fichier", fichier);
+  return jsonOrThrow(
+    await fetch(`${API}/reconciliation/grand-livre/import`, {
+      method: "POST", headers: headers(ctx, false), body: fd,
+    }),
+    "Import du grand livre impossible",
+  );
+}
+
+export async function importReleveCsv(
+  ctx: Ctx, compteBancaireId: string, soldeInitial: string, soldeFinal: string, fichier: File,
+): Promise<{ releve_id: string; periode_debut: string; periode_fin: string; nb_lignes: number }> {
+  const fd = new FormData();
+  fd.append("compte_bancaire_id", compteBancaireId);
+  fd.append("solde_initial", soldeInitial);
+  fd.append("solde_final", soldeFinal);
+  fd.append("fichier", fichier);
+  return jsonOrThrow(
+    await fetch(`${API}/reconciliation/releve/import`, {
+      method: "POST", headers: headers(ctx, false), body: fd,
+    }),
+    "Import du relevé impossible",
+  );
+}
+
 export async function runRapprochement(
   ctx: Ctx,
   body: { compte_bancaire_id: string; releve_id: string; periode_debut: string; periode_fin: string },

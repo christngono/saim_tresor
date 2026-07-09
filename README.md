@@ -109,6 +109,13 @@ upload (PDF/CSV/image)
 
 Toute étape est journalisée dans `audit_logs` avec son acteur (HUMAIN / IA).
 
+**Import de ses propres documents (sans IA ni stockage)** : un utilisateur peut
+importer son **grand livre** (compte 521) et son **relevé** au format CSV via
+`/rapprochement/importer` (endpoints `POST /reconciliation/grand-livre/import`
+et `POST /reconciliation/releve/import`), puis lancer le rapprochement — voie
+100 % déterministe. La voie PDF/image (extraction IA + stockage R2) reste
+disponible via `/rapprochement/nouveau`.
+
 ## Module 2 — Tableaux de flux de trésorerie (TFT)
 
 Moteur déterministe ([`core/cashflow/`](apps/api/app/core/cashflow/)) :

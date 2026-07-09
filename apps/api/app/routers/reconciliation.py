@@ -8,10 +8,11 @@ bloqué tant que le rapprochement n'est pas au statut VALIDE.
 """
 from __future__ import annotations
 
+import csv
 import io
 import uuid
 from datetime import date, datetime
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 
 from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, UploadFile
 
@@ -111,6 +112,101 @@ async def upload_releve(
             "modele": extrait.modele_utilise, "statut": "EXTRAIT",
             "periode_debut": extrait.periode_debut.isoformat(),
             "periode_fin": extrait.periode_fin.isoformat()}
+
+
+# ── 1bis) Imports CSV déterministes (ni LLM, ni stockage R2) ──
+def _dec(v: str | None) -> Decimal:
+    try:
+        return Decimal((v or "0").strip() or "0")
+    except InvalidOperation:
+        raise HTTPException(400, f"Montant invalide : {v!r}")
+
+
+def _lire_csv(contenu: bytes, colonnes: set[str]) -> list[dict]:
+    reader = csv.DictReader(io.StringIO(contenu.decode("utf-8-sig")))
+    manquantes = colonnes - set(reader.fieldnames or [])
+    if manquantes:
+        raise HTTPException(400, f"Colonnes CSV manquantes : {sorted(manquantes)}")
+    return list(reader)
+
+
+@router.post("/grand-livre/import")
+async def importer_grand_livre(
+    fichier: UploadFile = File(...),
+    ctx: Ctx = Depends(get_ctx),
+):
+    """Importe un grand livre depuis un CSV (crée comptes + écritures).
+
+    Colonnes : date_ecriture, journal, piece, compte, libelle, debit, credit.
+    """
+    rows = _lire_csv(
+        await fichier.read(),
+        {"date_ecriture", "journal", "compte", "libelle", "debit", "credit"},
+    )
+    async with tenant_scope(ctx.entreprise_id) as tx:
+        cache: dict[str, str] = {}
+        for r in rows:
+            numero = r["compte"].strip()
+            if numero not in cache:
+                cc = await tx.comptecomptable.find_first(
+                    where={"entrepriseId": ctx.entreprise_id, "numero": numero})
+                if cc is None:
+                    cc = await tx.comptecomptable.create(data={
+                        "entrepriseId": ctx.entreprise_id, "numero": numero,
+                        "intitule": f"Compte {numero}", "classe": int(numero[0])})
+                cache[numero] = cc.id
+            await tx.ecriturecomptable.create(data={
+                "entrepriseId": ctx.entreprise_id, "compteId": cache[numero],
+                "dateEcriture": datetime.combine(date.fromisoformat(r["date_ecriture"]), datetime.min.time()),
+                "journal": r["journal"], "piece": (r.get("piece") or None),
+                "libelle": r["libelle"], "debit": _dec(r["debit"]), "credit": _dec(r["credit"]),
+                "source": "IMPORT_CSV"})
+        await log(tx, entreprise_id=ctx.entreprise_id, acteur="HUMAIN",
+                  utilisateur_id=ctx.utilisateur_id, action="IMPORTER_GRAND_LIVRE",
+                  entite="ecritures_comptables", entite_id="*", apres={"nb": len(rows)})
+    return {"ecritures_importees": len(rows), "comptes": sorted(cache.keys())}
+
+
+@router.post("/releve/import")
+async def importer_releve(
+    compte_bancaire_id: str = Form(...),
+    solde_initial: str = Form(...),
+    solde_final: str = Form(...),
+    fichier: UploadFile = File(...),
+    ctx: Ctx = Depends(get_ctx),
+):
+    """Importe un relevé bancaire depuis un CSV (crée le relevé + ses lignes).
+
+    Colonnes : date_operation, date_valeur, libelle, reference, debit, credit.
+    La période est déduite des dates d'opération.
+    """
+    rows = _lire_csv(
+        await fichier.read(),
+        {"date_operation", "libelle", "debit", "credit"},
+    )
+    if not rows:
+        raise HTTPException(400, "Relevé vide")
+    dates = [date.fromisoformat(r["date_operation"]) for r in rows]
+    async with tenant_scope(ctx.entreprise_id) as tx:
+        releve = await tx.relevebancaire.create(data={
+            "entrepriseId": ctx.entreprise_id, "compteBancaireId": compte_bancaire_id,
+            "periodeDebut": datetime.combine(min(dates), datetime.min.time()),
+            "periodeFin": datetime.combine(max(dates), datetime.min.time()),
+            "soldeInitial": _dec(solde_initial), "soldeFinal": _dec(solde_final),
+            "source": "IMPORT_CSV", "statut": "VALIDE"})
+        for r in rows:
+            dv = r.get("date_valeur")
+            await tx.lignereleve.create(data={
+                "releveId": releve.id,
+                "dateOperation": datetime.combine(date.fromisoformat(r["date_operation"]), datetime.min.time()),
+                "dateValeur": datetime.combine(date.fromisoformat(dv), datetime.min.time()) if dv else None,
+                "libelle": r["libelle"], "reference": (r.get("reference") or None),
+                "debit": _dec(r["debit"]) or None, "credit": _dec(r["credit"]) or None})
+        await log(tx, entreprise_id=ctx.entreprise_id, acteur="HUMAIN",
+                  utilisateur_id=ctx.utilisateur_id, action="IMPORTER_RELEVE",
+                  entite="releves_bancaires", entite_id=releve.id, apres={"nb_lignes": len(rows)})
+    return {"releve_id": releve.id, "nb_lignes": len(rows),
+            "periode_debut": min(dates).isoformat(), "periode_fin": max(dates).isoformat()}
 
 
 # ── 2) Lancement du rapprochement (déterministe, aucun LLM) ──

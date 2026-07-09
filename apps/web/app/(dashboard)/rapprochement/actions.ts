@@ -26,6 +26,29 @@ export async function exporterAction(id: string): Promise<string> {
   return url;
 }
 
+/** Import CSV du grand livre + du relevé → rapprochement → redirection.
+ *  Voie 100 % déterministe : ni LLM, ni stockage R2. */
+export async function importerEtRapprocherAction(formData: FormData) {
+  const ctx = await requireCtx();
+  const compteId = String(formData.get("compte_bancaire_id"));
+  const grandLivre = formData.get("grand_livre") as File;
+  const releve = formData.get("releve") as File;
+  const soldeInitial = String(formData.get("solde_initial") || "0");
+  const soldeFinal = String(formData.get("solde_final") || "0");
+
+  if (grandLivre && grandLivre.size > 0) {
+    await api.importGrandLivre(ctx, grandLivre);
+  }
+  const imp = await api.importReleveCsv(ctx, compteId, soldeInitial, soldeFinal, releve);
+  const rap = await api.runRapprochement(ctx, {
+    compte_bancaire_id: compteId,
+    releve_id: imp.releve_id,
+    periode_debut: imp.periode_debut,
+    periode_fin: imp.periode_fin,
+  });
+  redirect(`/rapprochement/${rap.id}`);
+}
+
 /** Upload du relevé → extraction IA → rapprochement déterministe → redirection. */
 export async function uploadEtRunAction(formData: FormData) {
   const ctx = await requireCtx();
