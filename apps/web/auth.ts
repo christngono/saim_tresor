@@ -40,6 +40,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     }),
   ],
   callbacks: {
+    // Middleware : les routes protégées (voir matcher) redirigent vers /login
+    // si l'utilisateur n'est pas authentifié.
+    authorized({ auth }) {
+      return !!auth?.user;
+    },
     jwt({ token, user }) {
       if (user) {
         token.utilisateurId = (user as { id: string }).id;
