@@ -22,16 +22,20 @@ async def log(
     avant: Any | None = None,
     apres: Any | None = None,
 ) -> None:
-    await tx.auditlog.create(
-        data={
-            "entrepriseId": entreprise_id,
-            "acteurType": acteur,
-            "utilisateurId": utilisateur_id,
-            "modeleIA": modele_ia,
-            "action": action,
-            "entite": entite,
-            "entiteId": entite_id,
-            "avant": Json(avant) if avant is not None else None,
-            "apres": Json(apres) if apres is not None else None,
-        }
-    )
+    # prisma-client-py exige d'OMETTRE une clé Json? plutôt que d'y passer None.
+    data: dict = {
+        "entrepriseId": entreprise_id,
+        "acteurType": acteur,
+        "action": action,
+        "entite": entite,
+        "entiteId": entite_id,
+    }
+    if utilisateur_id is not None:
+        data["utilisateurId"] = utilisateur_id
+    if modele_ia is not None:
+        data["modeleIA"] = modele_ia
+    if avant is not None:
+        data["avant"] = Json(avant)
+    if apres is not None:
+        data["apres"] = Json(apres)
+    await tx.auditlog.create(data=data)

@@ -8,7 +8,7 @@ numero,intitule,classe,mouvement_debit,mouvement_credit
 401,Fournisseurs,4,0,200000
 411,Clients,4,500000,0
 44,État et collectivités,4,200000,0
-521,Banques,5,700000,0
+571,Caisse,5,700000,0
 601,Achats de marchandises,6,6000000,0
 641,Charges de personnel,6,2000000,0
 681,Dotations aux amortissements,6,400000,0
