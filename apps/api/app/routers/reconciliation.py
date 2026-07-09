@@ -116,18 +116,49 @@ async def upload_releve(
 
 # ── 1bis) Imports CSV déterministes (ni LLM, ni stockage R2) ──
 def _dec(v: str | None) -> Decimal:
+    """Tolère les formats FR : virgule décimale, espaces/insécables (milliers)."""
+    s = (v or "").replace(" ", " ").strip()
+    if not s:
+        return Decimal("0")
+    s = s.replace(" ", "")
+    if "," in s and "." in s:      # '.' milliers, ',' décimale → '1.234.567,89'
+        s = s.replace(".", "").replace(",", ".")
+    elif "," in s:                  # ',' décimale → '1234,89'
+        s = s.replace(",", ".")
     try:
-        return Decimal((v or "0").strip() or "0")
+        return Decimal(s)
     except InvalidOperation:
         raise HTTPException(400, f"Montant invalide : {v!r}")
 
 
+def _date(v: str) -> datetime:
+    """Accepte YYYY-MM-DD, DD/MM/YYYY, DD-MM-YYYY."""
+    s = (v or "").strip()
+    for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y", "%d/%m/%y"):
+        try:
+            return datetime.strptime(s, fmt)
+        except ValueError:
+            continue
+    raise HTTPException(400, f"Date invalide : {v!r} (formats acceptés : AAAA-MM-JJ ou JJ/MM/AAAA)")
+
+
 def _lire_csv(contenu: bytes, colonnes: set[str]) -> list[dict]:
-    reader = csv.DictReader(io.StringIO(contenu.decode("utf-8-sig")))
-    manquantes = colonnes - set(reader.fieldnames or [])
+    """Lit un CSV en détectant le séparateur (',', ';', tabulation) et en
+    normalisant les noms de colonnes (minuscules, sans espaces ni BOM)."""
+    texte = contenu.decode("utf-8-sig")
+    entete = next((l for l in texte.splitlines() if l.strip()), "")
+    delim = max((",", ";", "\t"), key=entete.count) if entete else ","
+    reader = csv.DictReader(io.StringIO(texte), delimiter=delim)
+    champs = {(f or "").strip().lower() for f in (reader.fieldnames or [])}
+    manquantes = colonnes - champs
     if manquantes:
-        raise HTTPException(400, f"Colonnes CSV manquantes : {sorted(manquantes)}")
-    return list(reader)
+        raise HTTPException(
+            400,
+            f"Colonnes manquantes : {sorted(manquantes)}. "
+            f"Colonnes trouvées : {sorted(champs)} (séparateur détecté : {delim!r}).",
+        )
+    rows = [{(k or "").strip().lower(): (v or "").strip() for k, v in r.items()} for r in reader]
+    return [r for r in rows if any(r.values())]  # ignore les lignes vides
 
 
 @router.post("/grand-livre/import")
@@ -145,8 +176,11 @@ async def importer_grand_livre(
     )
     async with tenant_scope(ctx.entreprise_id) as tx:
         cache: dict[str, str] = {}
+        importees = 0
         for r in rows:
             numero = r["compte"].strip()
+            if not numero:
+                continue
             if numero not in cache:
                 cc = await tx.comptecomptable.find_first(
                     where={"entrepriseId": ctx.entreprise_id, "numero": numero})
@@ -157,14 +191,17 @@ async def importer_grand_livre(
                 cache[numero] = cc.id
             await tx.ecriturecomptable.create(data={
                 "entrepriseId": ctx.entreprise_id, "compteId": cache[numero],
-                "dateEcriture": datetime.combine(date.fromisoformat(r["date_ecriture"]), datetime.min.time()),
-                "journal": r["journal"], "piece": (r.get("piece") or None),
+                "dateEcriture": _date(r["date_ecriture"]),
+                "journal": r.get("journal") or "OD", "piece": (r.get("piece") or None),
                 "libelle": r["libelle"], "debit": _dec(r["debit"]), "credit": _dec(r["credit"]),
                 "source": "IMPORT_CSV"})
+            importees += 1
+        if importees == 0:
+            raise HTTPException(400, "Aucune écriture valide dans le fichier.")
         await log(tx, entreprise_id=ctx.entreprise_id, acteur="HUMAIN",
                   utilisateur_id=ctx.utilisateur_id, action="IMPORTER_GRAND_LIVRE",
-                  entite="ecritures_comptables", entite_id="*", apres={"nb": len(rows)})
-    return {"ecritures_importees": len(rows), "comptes": sorted(cache.keys())}
+                  entite="ecritures_comptables", entite_id="*", apres={"nb": importees})
+    return {"ecritures_importees": importees, "comptes": sorted(cache.keys())}
 
 
 @router.post("/releve/import")
@@ -186,7 +223,7 @@ async def importer_releve(
     )
     if not rows:
         raise HTTPException(400, "Relevé vide")
-    dates = [date.fromisoformat(r["date_operation"]) for r in rows]
+    dates = [_date(r["date_operation"]).date() for r in rows]
     async with tenant_scope(ctx.entreprise_id) as tx:
         releve = await tx.relevebancaire.create(data={
             "entrepriseId": ctx.entreprise_id, "compteBancaireId": compte_bancaire_id,
@@ -198,8 +235,8 @@ async def importer_releve(
             dv = r.get("date_valeur")
             await tx.lignereleve.create(data={
                 "releveId": releve.id,
-                "dateOperation": datetime.combine(date.fromisoformat(r["date_operation"]), datetime.min.time()),
-                "dateValeur": datetime.combine(date.fromisoformat(dv), datetime.min.time()) if dv else None,
+                "dateOperation": _date(r["date_operation"]),
+                "dateValeur": _date(dv) if dv else None,
                 "libelle": r["libelle"], "reference": (r.get("reference") or None),
                 "debit": _dec(r["debit"]) or None, "credit": _dec(r["credit"]) or None})
         await log(tx, entreprise_id=ctx.entreprise_id, acteur="HUMAIN",
