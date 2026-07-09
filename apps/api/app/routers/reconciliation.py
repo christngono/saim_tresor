@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import csv
 import io
+import re
 import uuid
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
@@ -142,22 +143,48 @@ def _date(v: str) -> datetime:
     raise HTTPException(400, f"Date invalide : {v!r} (formats acceptés : AAAA-MM-JJ ou JJ/MM/AAAA)")
 
 
+# Alias de colonnes → nom canonique (tolère les en-têtes réels des logiciels FR).
+ALIASES = {
+    "date_ecriture": ("date", "date ecriture", "date écriture", "date comptable"),
+    "date_operation": ("date", "date operation", "date d'operation", "date d'opération"),
+    "date_valeur": ("date valeur", "valeur"),
+    "libelle": ("libellé", "intitule", "intitulé", "description", "designation", "désignation", "objet"),
+    "debit": ("débit", "debits", "montant debit"),
+    "credit": ("crédit", "credits", "montant credit"),
+    "compte": ("n° compte", "no compte", "numero compte", "numéro de compte", "compte general"),
+    "piece": ("pièce", "n° piece", "n° pièce", "num piece", "justificatif"),
+    "reference": ("référence", "ref", "réf"),
+    "journal": ("jal", "code journal"),
+    "solde": ("solde progressif", "solde cumule", "solde cumulé", "solde courant"),
+}
+
+
 def _lire_csv(contenu: bytes, colonnes: set[str]) -> list[dict]:
-    """Lit un CSV en détectant le séparateur (',', ';', tabulation) et en
-    normalisant les noms de colonnes (minuscules, sans espaces ni BOM)."""
+    """Lit un CSV en détectant le séparateur (',', ';', tabulation), en
+    normalisant les en-têtes (minuscules, sans espaces/BOM) et en appliquant les
+    alias de colonnes usuels."""
     texte = contenu.decode("utf-8-sig")
     entete = next((l for l in texte.splitlines() if l.strip()), "")
     delim = max((",", ";", "\t"), key=entete.count) if entete else ","
     reader = csv.DictReader(io.StringIO(texte), delimiter=delim)
-    champs = {(f or "").strip().lower() for f in (reader.fieldnames or [])}
+
+    # alias -> canonique (pour les colonnes attendues seulement)
+    alias_vers_canon = {a: canon for canon, al in ALIASES.items() if canon in colonnes for a in al}
+
+    def canon(k: str) -> str:
+        k = (k or "").strip().lower()
+        return alias_vers_canon.get(k, k)
+
+    champs = {canon(f) for f in (reader.fieldnames or [])}
     manquantes = colonnes - champs
     if manquantes:
         raise HTTPException(
             400,
             f"Colonnes manquantes : {sorted(manquantes)}. "
-            f"Colonnes trouvées : {sorted(champs)} (séparateur détecté : {delim!r}).",
+            f"Colonnes trouvées : {sorted((f or '').strip().lower() for f in (reader.fieldnames or []))} "
+            f"(séparateur détecté : {delim!r}).",
         )
-    rows = [{(k or "").strip().lower(): (v or "").strip() for k, v in r.items()} for r in reader]
+    rows = [{canon(k): (v or "").strip() for k, v in r.items()} for r in reader]
     return [r for r in rows if any(r.values())]  # ignore les lignes vides
 
 
@@ -168,19 +195,35 @@ async def importer_grand_livre(
 ):
     """Importe un grand livre depuis un CSV (crée comptes + écritures).
 
-    Colonnes : date_ecriture, journal, piece, compte, libelle, debit, credit.
+    Colonnes requises : date, compte, libelle, debit, credit (alias tolérés).
+    Colonnes optionnelles : journal, piece, solde. Une ligne « à nouveau »
+    (solde d'ouverture sans débit/crédit) est convertie en écriture d'ouverture.
     """
     rows = _lire_csv(
         await fichier.read(),
-        {"date_ecriture", "journal", "compte", "libelle", "debit", "credit"},
+        {"date_ecriture", "compte", "libelle", "debit", "credit"},
     )
     async with tenant_scope(ctx.entreprise_id) as tx:
         cache: dict[str, str] = {}
         importees = 0
-        for r in rows:
-            numero = r["compte"].strip()
-            if not numero:
+        for i, r in enumerate(rows):
+            # Extrait le numéro de compte (ex "5211 - Banque locale" → "5211").
+            m = re.match(r"\s*(\d+)", r["compte"])
+            if not m:
                 continue
+            numero = m.group(1)
+            debit, credit = _dec(r.get("debit")), _dec(r.get("credit"))
+
+            # Solde d'ouverture (« à nouveau ») → écriture d'ouverture depuis le solde.
+            lib_norm = r["libelle"].lower()
+            is_ouverture = (
+                debit == 0 and credit == 0 and r.get("solde")
+                and (i == 0 or "nouveau" in lib_norm or "report" in lib_norm)
+            )
+            if is_ouverture:
+                s = _dec(r["solde"])
+                debit, credit = (s, Decimal(0)) if s >= 0 else (Decimal(0), -s)
+
             if numero not in cache:
                 cc = await tx.comptecomptable.find_first(
                     where={"entrepriseId": ctx.entreprise_id, "numero": numero})
@@ -193,7 +236,7 @@ async def importer_grand_livre(
                 "entrepriseId": ctx.entreprise_id, "compteId": cache[numero],
                 "dateEcriture": _date(r["date_ecriture"]),
                 "journal": r.get("journal") or "OD", "piece": (r.get("piece") or None),
-                "libelle": r["libelle"], "debit": _dec(r["debit"]), "credit": _dec(r["credit"]),
+                "libelle": r["libelle"], "debit": debit, "credit": credit,
                 "source": "IMPORT_CSV"})
             importees += 1
         if importees == 0:
@@ -259,11 +302,12 @@ async def lancer(payload: LancerRapprochement, ctx: Ctx = Depends(get_ctx)):
 
         debut = datetime.combine(payload.periode_debut, datetime.min.time())
         fin = datetime.combine(payload.periode_fin, datetime.max.time())
+        # Matching par PRÉFIXE : le compte 521 rapproche 521, 5211, 52110… etc.
         ecritures_db = await tx.ecriturecomptable.find_many(
             where={
                 "entrepriseId": ctx.entreprise_id,
                 "dateEcriture": {"gte": debut, "lte": fin},
-                "compte": {"is": {"numero": compte.compteSyscohada}},
+                "compte": {"is": {"numero": {"startsWith": compte.compteSyscohada}}},
             }
         )
 
