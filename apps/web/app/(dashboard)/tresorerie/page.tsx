@@ -1,72 +1,82 @@
 import Link from "next/link";
 import { listComptes, listRapprochements } from "../../../lib/api";
 import { requireCtx } from "../../../lib/session";
+import { PageHeader, StatCard, Card, SectionTitle, Badge, EmptyState, ButtonLink } from "../../../components/ui";
+import { IconTresorerie, IconRapprochement, IconAlert, IconPlus } from "../../../components/ui/icons";
 
-function fcfa(v: number) {
-  return new Intl.NumberFormat("fr-FR").format(v) + " FCFA";
-}
+const STATUT: Record<string, "neutral" | "warning" | "positive" | "info"> = {
+  BROUILLON: "neutral", EN_REVUE: "warning", VALIDE: "positive", EXPORTE: "info",
+};
 
 export default async function Page() {
   const ctx = await requireCtx();
   const [comptes, raps] = await Promise.all([listComptes(ctx), listRapprochements(ctx)]);
-
   const aInstruire = raps.filter((r) => r.statut === "EN_REVUE").length;
-  const ecartsOuverts = raps
-    .filter((r) => r.statut === "EN_REVUE")
-    .reduce((s, r) => s + r.nbEcarts, 0);
+  const ecartsOuverts = raps.filter((r) => r.statut === "EN_REVUE").reduce((s, r) => s + r.nbEcarts, 0);
 
   return (
-    <div className="mx-auto max-w-5xl">
-      <h1 className="mb-6 text-2xl font-bold">Vue d'ensemble trésorerie</h1>
+    <>
+      <PageHeader
+        title="Vue d'ensemble trésorerie"
+        description="Pilotage de la trésorerie, conforme SYSCOHADA révisé."
+        actions={<ButtonLink href="/rapprochement/importer"><IconPlus className="h-4 w-4" /> Nouveau rapprochement</ButtonLink>}
+      />
 
-      <div className="mb-8 grid grid-cols-3 gap-4">
-        <Kpi label="Comptes bancaires" value={String(comptes.length)} />
-        <Kpi label="Rapprochements à instruire" value={String(aInstruire)}
-          highlight={aInstruire > 0} />
-        <Kpi label="Écarts ouverts" value={String(ecartsOuverts)} highlight={ecartsOuverts > 0} />
+      <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <StatCard label="Comptes bancaires" value={String(comptes.length)} tone="brand" icon={<IconTresorerie />} />
+        <StatCard label="À instruire" value={String(aInstruire)} tone={aInstruire ? "warning" : "neutral"}
+          hint="rapprochements en revue" icon={<IconRapprochement />} />
+        <StatCard label="Écarts ouverts" value={String(ecartsOuverts)} tone={ecartsOuverts ? "negative" : "neutral"}
+          hint="à valider par un humain" icon={<IconAlert />} />
       </div>
 
-      <section className="mb-8">
-        <h2 className="mb-3 text-lg font-semibold">Comptes bancaires</h2>
-        <div className="grid grid-cols-2 gap-4">
-          {comptes.map((c) => (
-            <div key={c.id} className="rounded-lg border p-4">
-              <div className="font-medium">{c.banque}</div>
-              <div className="text-sm text-gray-500">{c.intitule}</div>
-              <div className="mt-1 text-xs text-gray-400">{c.numeroCompte}</div>
-            </div>
-          ))}
-        </div>
-      </section>
+      <div className="mb-8">
+        <SectionTitle>Comptes bancaires</SectionTitle>
+        {comptes.length === 0 ? (
+          <EmptyState title="Aucun compte bancaire" hint="Configurez un compte pour démarrer un rapprochement." />
+        ) : (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            {comptes.map((c) => (
+              <Card key={c.id} className="p-5">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <div className="font-medium text-slate-900">{c.banque}</div>
+                    <div className="text-sm text-slate-500">{c.intitule}</div>
+                  </div>
+                  <Badge tone="neutral">{c.devise}</Badge>
+                </div>
+                <div className="mt-3 font-mono text-xs text-slate-400">{c.numeroCompte}</div>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
 
-      <section>
+      <div>
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Rapprochements récents</h2>
-          <Link href="/rapprochement" className="text-sm text-blue-700">Tout voir →</Link>
+          <SectionTitle>Rapprochements récents</SectionTitle>
+          <Link href="/rapprochement" className="text-sm font-medium text-brand-700 hover:underline">Tout voir →</Link>
         </div>
-        <ul className="divide-y rounded-lg border">
-          {raps.slice(0, 5).map((r) => (
-            <li key={r.id} className="flex items-center justify-between px-4 py-3 text-sm">
-              <Link href={`/rapprochement/${r.id}`} className="text-blue-700">
-                {r.periodeDebut} → {r.periodeFin}
-              </Link>
-              <span className="text-gray-500">{r.statut} · {r.nbEcarts} écart(s)</span>
-            </li>
-          ))}
-          {raps.length === 0 && (
-            <li className="px-4 py-3 text-sm text-gray-500">Aucun rapprochement.</li>
+        <Card>
+          {raps.length === 0 ? (
+            <p className="p-6 text-sm text-slate-400">Aucun rapprochement pour le moment.</p>
+          ) : (
+            <ul className="divide-y divide-slate-100">
+              {raps.slice(0, 5).map((r) => (
+                <li key={r.id}>
+                  <Link href={`/rapprochement/${r.id}`} className="flex items-center justify-between px-5 py-3.5 text-sm hover:bg-slate-50">
+                    <span className="font-medium text-slate-700">{r.periodeDebut} → {r.periodeFin}</span>
+                    <span className="flex items-center gap-3">
+                      <span className="text-slate-400">{r.nbEcarts} écart(s)</span>
+                      <Badge tone={STATUT[r.statut] ?? "neutral"}>{r.statut}</Badge>
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
           )}
-        </ul>
-      </section>
-    </div>
-  );
-}
-
-function Kpi({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
-  return (
-    <div className={`rounded-lg border p-4 ${highlight ? "border-amber-300 bg-amber-50" : ""}`}>
-      <div className="text-xs uppercase text-gray-500">{label}</div>
-      <div className="mt-1 text-2xl font-bold">{value}</div>
-    </div>
+        </Card>
+      </div>
+    </>
   );
 }

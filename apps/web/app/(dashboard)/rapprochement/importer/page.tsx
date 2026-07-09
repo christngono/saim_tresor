@@ -2,24 +2,28 @@ import Link from "next/link";
 import { listComptes } from "../../../../lib/api";
 import { requireCtx } from "../../../../lib/session";
 import { ImportForm } from "../../../../components/reconciliation/ImportForm";
+import { PageHeader, EmptyState } from "../../../../components/ui";
 
 export default async function Page() {
   const ctx = await requireCtx();
   const comptes = await listComptes(ctx);
 
   return (
-    <div className="mx-auto max-w-4xl">
-      <h1 className="mb-2 text-2xl font-bold">Importer grand livre + relevé (CSV)</h1>
-      <p className="mb-6 text-sm text-gray-500">
-        Voie déterministe pour tester avec vos propres fichiers. Pour un relevé
-        PDF/image (extraction IA), utilisez plutôt{" "}
-        <Link href="/rapprochement/nouveau" className="text-blue-700">l'upload</Link>.
-      </p>
+    <>
+      <PageHeader
+        title="Importer grand livre + relevé"
+        description="Voie déterministe (CSV) — testez avec vos propres fichiers. Pour un relevé PDF/image, utilisez l'upload IA."
+      />
       {comptes.length === 0 ? (
-        <p className="text-gray-500">Aucun compte bancaire configuré pour cette entreprise.</p>
+        <EmptyState title="Aucun compte bancaire" hint="Configurez un compte pour cette entreprise." />
       ) : (
-        <ImportForm comptes={comptes} />
+        <>
+          <ImportForm comptes={comptes} />
+          <p className="mt-4 text-sm text-slate-500">
+            Besoin d'un relevé PDF/image ? <Link href="/rapprochement/nouveau" className="font-medium text-brand-700 hover:underline">Passer par l'upload IA</Link>.
+          </p>
+        </>
       )}
-    </div>
+    </>
   );
 }

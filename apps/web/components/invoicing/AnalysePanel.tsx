@@ -12,6 +12,12 @@ const LIBELLE: Record<string, string> = {
   DOUBLON: "Doublon", ECART_PRIX: "Écart de prix",
   MONTANT_INCOHERENT: "Montant incohérent", RETARD: "Retard de paiement",
 };
+const ANO_TONE: Record<string, string> = {
+  RETARD: "bg-amber-50 text-amber-700 ring-amber-200",
+  DOUBLON: "bg-rose-50 text-rose-700 ring-rose-200",
+  ECART_PRIX: "bg-rose-50 text-rose-700 ring-rose-200",
+  MONTANT_INCOHERENT: "bg-rose-50 text-rose-700 ring-rose-200",
+};
 
 export function AnalysePanel({ dateReference }: { dateReference: string }) {
   const [analyse, setAnalyse] = useState<Analyse | null>(null);
@@ -21,89 +27,94 @@ export function AnalysePanel({ dateReference }: { dateReference: string }) {
   function lancer() {
     start(async () => {
       setAnalyse(await analyserAction(dateReference));
-      const r = await genererRelancesAction(dateReference);
-      setRelances(r.relances);
+      setRelances((await genererRelancesAction(dateReference)).relances);
     });
   }
-
   function decider(id: string, decision: "ENVOYER" | "ANNULER") {
     start(async () => {
       await validerRelanceAction(id, decision);
-      setRelances((rs) => rs.map((r) => r.id === id
-        ? { ...r, statut: decision === "ENVOYER" ? "ENVOYEE" : "ANNULEE" } : r));
+      setRelances((rs) => rs.map((r) => r.id === id ? { ...r, statut: decision === "ENVOYER" ? "ENVOYEE" : "ANNULEE" } : r));
     });
   }
 
   return (
     <div className="space-y-6">
-      <button onClick={lancer} disabled={pending}
-        className="rounded bg-gray-900 px-4 py-2 text-sm text-white disabled:opacity-50">
-        {pending ? "Analyse en cours…" : "Analyser (DSO, anomalies, relances)"}
-      </button>
+      {!analyse && (
+        <button onClick={lancer} disabled={pending} className="btn-primary">
+          {pending ? "Analyse en cours…" : "Analyser (DSO, anomalies, relances)"}
+        </button>
+      )}
 
       {analyse && (
         <>
-          <div className="grid grid-cols-3 gap-4">
-            <Kpi label="DSO" value={`${analyse.dso.dso_jours} j`} highlight={Number(analyse.dso.dso_jours) > 60} />
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <Kpi label="DSO" value={`${analyse.dso.dso_jours} j`} tone={Number(analyse.dso.dso_jours) > 60 ? "warn" : "ok"} hint="délai moyen de paiement" />
             <Kpi label="Encours créances" value={fcfa(analyse.dso.encours_creances_ttc)} />
-            <Kpi label="Anomalies détectées" value={String(analyse.anomalies.length)}
-              highlight={analyse.anomalies.length > 0} />
+            <Kpi label="Anomalies" value={String(analyse.anomalies.length)} tone={analyse.anomalies.length ? "warn" : "ok"} />
           </div>
 
-          <section>
-            <h2 className="mb-2 text-lg font-semibold">Anomalies</h2>
+          <div className="card overflow-hidden">
+            <header className="border-b border-slate-100 px-5 py-3 text-sm font-semibold text-slate-900">Anomalies détectées</header>
             <table className="w-full text-sm">
-              <thead className="text-left text-gray-500"><tr><th className="py-1">Type</th><th>Détail</th></tr></thead>
-              <tbody>
+              <tbody className="divide-y divide-slate-100">
                 {analyse.anomalies.map((a, i) => (
-                  <tr key={i} className="border-t">
-                    <td className="py-1.5 font-medium">{LIBELLE[a.type] ?? a.type}</td>
-                    <td className="text-gray-600">{a.detail}</td>
+                  <tr key={i} className="hover:bg-slate-50">
+                    <td className="px-5 py-3 w-48">
+                      <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset ${ANO_TONE[a.type] ?? "bg-slate-100 text-slate-700 ring-slate-200"}`}>
+                        {LIBELLE[a.type] ?? a.type}
+                      </span>
+                    </td>
+                    <td className="px-5 py-3 text-slate-500">{a.detail}</td>
                   </tr>
                 ))}
+                {analyse.anomalies.length === 0 && <tr><td className="px-5 py-4 text-sm text-slate-400">Aucune anomalie.</td></tr>}
               </tbody>
             </table>
-          </section>
+          </div>
         </>
       )}
 
       {relances.length > 0 && (
-        <section>
-          <h2 className="mb-2 text-lg font-semibold">Relances (brouillons — à valider avant envoi)</h2>
+        <div>
+          <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
+            Relances — brouillons à valider avant envoi
+          </h3>
           <div className="space-y-3">
             {relances.map((r) => (
-              <div key={r.id} className="rounded-lg border p-4">
-                <div className="mb-2 flex items-center justify-between">
+              <div key={r.id} className="card p-4">
+                <div className="mb-2 flex items-center justify-between gap-3">
                   <div className="text-sm">
-                    <span className="font-medium">{r.tiers}</span> · niveau {r.niveau} ·{" "}
-                    {r.jours_retard} j de retard · {fcfa(r.montant_du)}
+                    <span className="font-semibold text-slate-800">{r.tiers}</span>
+                    <span className="text-slate-400"> · niveau {r.niveau} · {r.jours_retard} j · {fcfa(r.montant_du)}</span>
                   </div>
                   {r.statut === "BROUILLON" ? (
                     <div className="flex gap-2">
                       <button onClick={() => decider(r.id, "ENVOYER")} disabled={pending}
-                        className="rounded bg-green-600 px-3 py-1 text-xs text-white disabled:opacity-50">Envoyer</button>
+                        className="rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-700 disabled:opacity-50">Envoyer</button>
                       <button onClick={() => decider(r.id, "ANNULER")} disabled={pending}
-                        className="rounded border border-red-300 px-3 py-1 text-xs text-red-700 disabled:opacity-50">Annuler</button>
+                        className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50">Annuler</button>
                     </div>
                   ) : (
-                    <span className={`text-xs ${r.statut === "ENVOYEE" ? "text-green-700" : "text-red-700"}`}>{r.statut}</span>
+                    <span className={`text-xs font-medium ${r.statut === "ENVOYEE" ? "text-emerald-600" : "text-rose-600"}`}>{r.statut}</span>
                   )}
                 </div>
-                <pre className="whitespace-pre-wrap rounded bg-gray-50 p-3 text-xs text-gray-700">{r.message}</pre>
+                <pre className="whitespace-pre-wrap rounded-lg bg-slate-50 p-3 text-xs text-slate-600">{r.message}</pre>
               </div>
             ))}
           </div>
-        </section>
+        </div>
       )}
     </div>
   );
 }
 
-function Kpi({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
+function Kpi({ label, value, hint, tone }: { label: string; value: string; hint?: string; tone?: "ok" | "warn" }) {
+  const accent = tone === "warn" ? "text-amber-600" : "text-slate-900";
   return (
-    <div className={`rounded-lg border p-4 ${highlight ? "border-amber-300 bg-amber-50" : ""}`}>
-      <div className="text-xs uppercase text-gray-500">{label}</div>
-      <div className="mt-1 text-2xl font-bold">{value}</div>
+    <div className="card p-5">
+      <div className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</div>
+      <div className={`mt-2 text-2xl font-bold tabular ${accent}`}>{value}</div>
+      {hint && <div className="mt-1 text-xs text-slate-400">{hint}</div>}
     </div>
   );
 }

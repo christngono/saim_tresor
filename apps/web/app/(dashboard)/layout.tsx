@@ -1,37 +1,47 @@
-import Link from "next/link";
-import { signOut } from "../../auth";
+import { auth, signOut } from "../../auth";
+import { DashboardNav } from "../../components/DashboardNav";
+import { IconLogo, IconLogout } from "../../components/ui/icons";
 
-const NAV = [
-  { href: "/tresorerie", label: "Trésorerie" },
-  { href: "/rapprochement", label: "Rapprochement" },
-  { href: "/tft", label: "Flux (TFT)" },
-  { href: "/factures", label: "Factures / DSO" },
-];
+export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
+  const session = (await auth()) as (Record<string, unknown> & { user?: { name?: string; email?: string } }) | null;
+  const nom = session?.user?.name ?? "Utilisateur";
+  const email = session?.user?.email ?? "";
+  const initiales = nom.split(" ").map((s) => s[0]).slice(0, 2).join("").toUpperCase();
 
-export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen">
-      <aside className="w-56 shrink-0 border-r bg-gray-50 p-4">
-        <div className="mb-6 px-2">
-          <div className="font-bold">SAIM Trésorerie</div>
-          <div className="text-xs text-gray-500">SYSCOHADA révisé</div>
+      <aside className="fixed inset-y-0 left-0 flex w-64 flex-col bg-slate-900 px-4 py-5">
+        <div className="mb-8 flex items-center gap-2.5 px-2">
+          <span className="text-brand-400"><IconLogo className="h-7 w-7" /></span>
+          <div>
+            <div className="font-semibold leading-tight text-white">SAIM Trésorerie</div>
+            <div className="text-[11px] text-slate-400">SYSCOHADA révisé</div>
+          </div>
         </div>
-        <nav className="space-y-1">
-          {NAV.map((n) => (
-            <Link key={n.href} href={n.href}
-              className="block rounded px-2 py-1.5 text-sm text-gray-700 hover:bg-gray-200">
-              {n.label}
-            </Link>
-          ))}
-        </nav>
-        <form
-          action={async () => { "use server"; await signOut({ redirectTo: "/login" }); }}
-          className="mt-6"
-        >
-          <button className="px-2 text-xs text-gray-500 hover:text-gray-800">Se déconnecter</button>
-        </form>
+
+        <DashboardNav />
+
+        <div className="mt-auto border-t border-slate-800 pt-4">
+          <div className="mb-3 flex items-center gap-3 px-2">
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-600 text-sm font-semibold text-white">
+              {initiales}
+            </div>
+            <div className="min-w-0">
+              <div className="truncate text-sm font-medium text-white">{nom}</div>
+              <div className="truncate text-[11px] text-slate-400">{email}</div>
+            </div>
+          </div>
+          <form action={async () => { "use server"; await signOut({ redirectTo: "/login" }); }}>
+            <button className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-slate-400 transition-colors hover:bg-slate-800 hover:text-slate-100">
+              <IconLogout className="h-5 w-5" /> Se déconnecter
+            </button>
+          </form>
+        </div>
       </aside>
-      <main className="flex-1 p-8">{children}</main>
+
+      <main className="ml-64 flex-1 px-8 py-8">
+        <div className="mx-auto max-w-5xl">{children}</div>
+      </main>
     </div>
   );
 }

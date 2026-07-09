@@ -1,12 +1,9 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { signIn } from "../../../auth";
+import { IconLogo } from "../../../components/ui/icons";
 
-export default function LoginPage({
-  searchParams,
-}: {
-  searchParams: { error?: string };
-}) {
+export default function LoginPage({ searchParams }: { searchParams: { error?: string } }) {
   async function connexion(formData: FormData) {
     "use server";
     try {
@@ -16,35 +13,43 @@ export default function LoginPage({
         redirectTo: "/tresorerie",
       });
     } catch (e) {
-      // NextAuth relance une redirection ; on ne la traite pas comme une erreur.
       if ((e as { digest?: string })?.digest?.startsWith("NEXT_REDIRECT")) throw e;
       redirect("/login?error=1");
     }
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50">
-      <form action={connexion} className="w-80 space-y-4 rounded-lg border bg-white p-6">
-        <div>
-          <div className="text-lg font-bold">SAIM Trésorerie</div>
-          <div className="text-xs text-gray-500">Connexion</div>
+    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-900 via-slate-900 to-brand-900 p-4">
+      <div className="w-full max-w-sm">
+        <div className="mb-6 flex items-center justify-center gap-2.5 text-white">
+          <span className="text-brand-400"><IconLogo className="h-8 w-8" /></span>
+          <div className="text-lg font-semibold">SAIM Trésorerie</div>
         </div>
-        {searchParams.error && (
-          <p className="rounded bg-red-50 px-3 py-2 text-sm text-red-700">
-            Identifiants invalides.
+        <form action={connexion} className="space-y-4 rounded-2xl border border-slate-200 bg-white p-7 shadow-xl">
+          <div>
+            <h1 className="text-lg font-semibold text-slate-900">Connexion</h1>
+            <p className="text-sm text-slate-500">Accédez à votre espace trésorerie.</p>
+          </div>
+          {searchParams.error && (
+            <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700 ring-1 ring-inset ring-rose-200">
+              Identifiants invalides.
+            </p>
+          )}
+          <div>
+            <label className="label">Email</label>
+            <input name="email" type="email" required placeholder="vous@entreprise.cm" className="input" />
+          </div>
+          <div>
+            <label className="label">Mot de passe</label>
+            <input name="password" type="password" required placeholder="••••••••" className="input" />
+          </div>
+          <button className="btn-primary w-full">Se connecter</button>
+          <p className="text-center text-xs text-slate-500">
+            Pas de compte ? <Link href="/register" className="font-medium text-brand-700 hover:underline">Créer une entreprise</Link>
           </p>
-        )}
-        <input name="email" type="email" required placeholder="Email"
-          className="w-full rounded border px-3 py-2 text-sm" />
-        <input name="password" type="password" required placeholder="Mot de passe"
-          className="w-full rounded border px-3 py-2 text-sm" />
-        <button className="w-full rounded bg-gray-900 px-4 py-2 text-sm text-white">
-          Se connecter
-        </button>
-        <p className="text-center text-xs text-gray-500">
-          Pas de compte ? <Link href="/register" className="text-blue-700">Créer une entreprise</Link>
-        </p>
-      </form>
+        </form>
+        <p className="mt-4 text-center text-xs text-slate-400">Conforme SYSCOHADA révisé · Cameroun</p>
+      </div>
     </div>
   );
 }

@@ -1,16 +1,11 @@
 import Link from "next/link";
 import { listRapprochements } from "../../../lib/api";
 import { requireCtx } from "../../../lib/session";
+import { PageHeader, Card, Badge, EmptyState, fcfa } from "../../../components/ui";
+import { IconPlus, IconUpload } from "../../../components/ui/icons";
 
-function fcfa(v: string) {
-  return new Intl.NumberFormat("fr-FR").format(Number(v)) + " FCFA";
-}
-
-const STATUT_TON: Record<string, string> = {
-  BROUILLON: "bg-gray-100 text-gray-700",
-  EN_REVUE: "bg-amber-100 text-amber-800",
-  VALIDE: "bg-green-100 text-green-800",
-  EXPORTE: "bg-blue-100 text-blue-800",
+const STATUT: Record<string, "neutral" | "warning" | "positive" | "info"> = {
+  BROUILLON: "neutral", EN_REVUE: "warning", VALIDE: "positive", EXPORTE: "info",
 };
 
 export default async function Page() {
@@ -18,53 +13,52 @@ export default async function Page() {
   const raps = await listRapprochements(ctx);
 
   return (
-    <div className="mx-auto max-w-4xl">
-      <header className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Rapprochements bancaires</h1>
-        <div className="flex gap-2">
-          <Link href="/rapprochement/importer"
-            className="rounded bg-gray-900 px-4 py-2 text-sm text-white">
-            Importer CSV (grand livre + relevé)
-          </Link>
-          <Link href="/rapprochement/nouveau"
-            className="rounded border px-4 py-2 text-sm">
-            Upload relevé (PDF/IA)
-          </Link>
-        </div>
-      </header>
+    <>
+      <PageHeader
+        title="Rapprochements bancaires"
+        description="Comparez votre grand livre (compte 521) à vos relevés."
+        actions={
+          <>
+            <Link href="/rapprochement/importer" className="btn-primary"><IconPlus className="h-4 w-4" /> Importer CSV</Link>
+            <Link href="/rapprochement/nouveau" className="btn-secondary"><IconUpload className="h-4 w-4" /> Upload relevé</Link>
+          </>
+        }
+      />
 
       {raps.length === 0 ? (
-        <p className="text-gray-500">Aucun rapprochement. Importez un relevé pour commencer.</p>
+        <EmptyState
+          title="Aucun rapprochement"
+          hint="Importez un grand livre et un relevé (CSV) pour lancer votre premier rapprochement."
+          action={<Link href="/rapprochement/importer" className="btn-primary"><IconPlus className="h-4 w-4" /> Importer CSV</Link>}
+        />
       ) : (
-        <table className="w-full text-sm">
-          <thead className="text-left text-gray-500">
-            <tr>
-              <th className="py-2">Période</th>
-              <th>Statut</th>
-              <th>Écarts</th>
-              <th className="text-right">Écart de solde</th>
-            </tr>
-          </thead>
-          <tbody>
-            {raps.map((r) => (
-              <tr key={r.id} className="border-t hover:bg-gray-50">
-                <td className="py-2">
-                  <Link href={`/rapprochement/${r.id}`} className="text-blue-700">
-                    {r.periodeDebut} → {r.periodeFin}
-                  </Link>
-                </td>
-                <td>
-                  <span className={`rounded px-2 py-0.5 text-xs ${STATUT_TON[r.statut] ?? ""}`}>
-                    {r.statut}
-                  </span>
-                </td>
-                <td>{r.nbEcarts}</td>
-                <td className="text-right">{fcfa(r.ecart)}</td>
+        <Card className="overflow-hidden">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-slate-100 text-left text-xs uppercase tracking-wide text-slate-500">
+                <th className="px-5 py-3 font-medium">Période</th>
+                <th className="px-5 py-3 font-medium">Statut</th>
+                <th className="px-5 py-3 font-medium">Écarts</th>
+                <th className="px-5 py-3 text-right font-medium">Écart de solde</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {raps.map((r) => (
+                <tr key={r.id} className="hover:bg-slate-50">
+                  <td className="px-5 py-3.5">
+                    <Link href={`/rapprochement/${r.id}`} className="font-medium text-brand-700 hover:underline">
+                      {r.periodeDebut} → {r.periodeFin}
+                    </Link>
+                  </td>
+                  <td className="px-5 py-3.5"><Badge tone={STATUT[r.statut] ?? "neutral"}>{r.statut}</Badge></td>
+                  <td className="px-5 py-3.5 text-slate-600">{r.nbEcarts}</td>
+                  <td className="px-5 py-3.5 text-right tabular text-slate-700">{fcfa(r.ecart)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Card>
       )}
-    </div>
+    </>
   );
 }
