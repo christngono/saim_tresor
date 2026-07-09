@@ -40,6 +40,32 @@
   }
 }
 
+/* ── Fond animé « papier financier » (page auth) ── */
+@keyframes saim-drift {
+  from { transform: translate3d(0, 0, 0); }
+  to   { transform: translate3d(-48px, -48px, 0); } /* = 1 tuile de grille → boucle sans couture */
+}
+@keyframes saim-float {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-16px); }
+}
+@keyframes saim-pulse {
+  0%, 100% { opacity: 0.07; }
+  50%      { opacity: 0.20; }
+}
+@keyframes saim-draw {
+  0%   { stroke-dashoffset: 520; }
+  55%  { stroke-dashoffset: 0; }
+  100% { stroke-dashoffset: 0; }
+}
+.anim-drift { animation: saim-drift 26s linear infinite; }
+.anim-motif { animation: saim-float 11s ease-in-out infinite, saim-pulse 9s ease-in-out infinite; }
+.anim-draw  { stroke-dasharray: 520; animation: saim-draw 9s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .anim-drift, .anim-motif, .anim-draw { animation: none; }
+}
+
 /* Barre de défilement discrète */
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-thumb { background: rgb(203 213 225); border-radius: 9999px; border: 2px solid transparent; background-clip: content-box; }

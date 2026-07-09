@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { signIn } from "../../../auth";
 import { SaimMark } from "../../../components/ui/icons";
+import { AuthBackground } from "../../../components/AuthBackground";
 
 export default function LoginPage({ searchParams }: { searchParams: { error?: string } }) {
   async function connexion(formData: FormData) {
@@ -19,8 +20,9 @@ export default function LoginPage({ searchParams }: { searchParams: { error?: st
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-900 via-slate-900 to-brand-900 p-4">
-      <div className="w-full max-w-sm">
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-gradient-to-br from-slate-900 via-slate-900 to-brand-900 p-4">
+      <AuthBackground />
+      <div className="relative z-10 w-full max-w-sm">
         <div className="mb-6 flex items-center justify-center gap-2.5 text-white">
           <SaimMark className="h-10 w-auto" />
           <div className="text-lg font-semibold">SAIM Trésorerie</div>
