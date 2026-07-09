@@ -460,23 +460,68 @@ async def exporter(rap_id: str, ctx: Ctx = Depends(get_ctx)):
 
 
 # ── Helpers ──
+def _releve_out(l) -> dict | None:
+    if l is None:
+        return None
+    montant = (l.credit or Decimal(0)) - (l.debit or Decimal(0))
+    return {
+        "date_operation": l.dateOperation.date(),
+        "date_valeur": l.dateValeur.date() if l.dateValeur else None,
+        "libelle": l.libelle, "reference": l.reference, "montant": montant,
+        "sens": "ENTREE" if montant >= 0 else "SORTIE",
+    }
+
+
+def _ecriture_out(e) -> dict | None:
+    if e is None:
+        return None
+    montant = e.debit - e.credit
+    return {
+        "date_ecriture": e.dateEcriture.date(), "journal": e.journal, "piece": e.piece,
+        "libelle": e.libelle, "montant": montant,
+        "sens": "ENTREE" if montant >= 0 else "SORTIE",
+    }
+
+
+def _explication(m, l, e) -> tuple[int | None, str | None]:
+    """Phrase de critères dérivée des scores stockés + des 2 dates (immuables)."""
+    if l is None or e is None:
+        return None, None
+    jours = abs((l.dateOperation.date() - e.dateEcriture.date()).days)
+    parts = ["montant identique" if m.scoreMontant >= 0.98 else "montant différent"]
+    parts.append("même date" if jours == 0 else f"écart {jours} j")
+    if m.scoreLibelle >= 0.7:
+        parts.append("libellé proche")
+    elif m.scoreLibelle >= 0.4:
+        parts.append("libellé partiel")
+    else:
+        parts.append("libellé différent")
+    return jours, " · ".join(parts)
+
+
 async def _to_out(tx, rap_id: str) -> RapprochementOut:
     rap = await tx.rapprochement.find_unique(where={"id": rap_id})
     if rap is None:
         raise HTTPException(404, "Rapprochement introuvable")
-    matches = await tx.rapprochementmatch.find_many(where={"rapprochementId": rap_id})
+    matches = await tx.rapprochementmatch.find_many(
+        where={"rapprochementId": rap_id},
+        include={"ligneReleve": True, "ecriture": True},
+    )
+    out = []
+    for m in matches:
+        jours, expl = _explication(m, m.ligneReleve, m.ecriture)
+        out.append({
+            "id": m.id, "ligne_releve_id": m.ligneReleveId, "ecriture_id": m.ecritureId,
+            "score_confiance": m.scoreConfiance, "score_montant": m.scoreMontant,
+            "score_date": m.scoreDate, "score_libelle": m.scoreLibelle,
+            "methode": m.methode, "type_ecart": m.typeEcart, "statut": m.statut,
+            "releve": _releve_out(m.ligneReleve), "ecriture": _ecriture_out(m.ecriture),
+            "ecart_jours": jours, "explication": expl,
+        })
     return RapprochementOut(
         id=rap.id, statut=rap.statut, solde_releve=rap.soldeReleve,
         solde_comptable=rap.soldeComptable, ecart=rap.ecart, algo_version=rap.algoVersion,
-        matches=[
-            {
-                "id": m.id, "ligne_releve_id": m.ligneReleveId, "ecriture_id": m.ecritureId,
-                "score_confiance": m.scoreConfiance, "score_montant": m.scoreMontant,
-                "score_date": m.scoreDate, "score_libelle": m.scoreLibelle,
-                "methode": m.methode, "type_ecart": m.typeEcart, "statut": m.statut,
-            }
-            for m in matches
-        ],
+        matches=out,
     )
 
 

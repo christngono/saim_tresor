@@ -45,6 +45,24 @@ class ValiderMatch(BaseModel):
     ecriture_id_corrigee: str | None = None  # si CORRIGE : réappariement manuel
 
 
+class LigneReleveOut(BaseModel):
+    date_operation: date
+    date_valeur: date | None = None
+    libelle: str
+    reference: str | None = None
+    montant: Decimal  # signé, vue trésorerie (crédit − débit)
+    sens: str  # ENTREE | SORTIE
+
+
+class EcritureOut(BaseModel):
+    date_ecriture: date
+    journal: str
+    piece: str | None = None
+    libelle: str
+    montant: Decimal  # signé (débit − crédit)
+    sens: str
+
+
 class MatchOut(BaseModel):
     id: str
     ligne_releve_id: str | None
@@ -56,6 +74,11 @@ class MatchOut(BaseModel):
     methode: str
     type_ecart: str | None
     statut: str
+    # Enrichissements (dérivés à la lecture, aucune donnée nouvelle en base) :
+    releve: LigneReleveOut | None = None
+    ecriture: EcritureOut | None = None
+    ecart_jours: int | None = None
+    explication: str | None = None
 
 
 class RapprochementOut(BaseModel):

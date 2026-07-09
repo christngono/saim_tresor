@@ -8,9 +8,13 @@ import * as api from "../../../lib/api";
 // Toutes les mutations passent ici : le contexte (tenant + utilisateur) est
 // dérivé de la session côté serveur, jamais transmis par le client.
 
-export async function validerMatchAction(matchId: string, decision: "VALIDE" | "REJETE") {
+export async function validerMatchAction(
+  matchId: string, decision: "VALIDE" | "REJETE", rapId: string,
+) {
   const ctx = await requireCtx();
   await api.validerMatch(ctx, matchId, decision);
+  // Rafraîchit les données rendues côté serveur (compteurs, bandeau « restants »).
+  revalidatePath(`/rapprochement/${rapId}`);
 }
 
 export async function validerRapprochementAction(id: string) {

@@ -5,6 +5,24 @@ import type { Ctx } from "./session";
 
 const API = process.env.API_BASE_URL ?? "http://localhost:8000";
 
+export type LigneReleveOut = {
+  date_operation: string;
+  date_valeur: string | null;
+  libelle: string;
+  reference: string | null;
+  montant: string;
+  sens: "ENTREE" | "SORTIE";
+};
+
+export type EcritureOut = {
+  date_ecriture: string;
+  journal: string;
+  piece: string | null;
+  libelle: string;
+  montant: string;
+  sens: "ENTREE" | "SORTIE";
+};
+
 export type MatchOut = {
   id: string;
   ligne_releve_id: string | null;
@@ -16,6 +34,10 @@ export type MatchOut = {
   methode: string;
   type_ecart: string | null;
   statut: string;
+  releve: LigneReleveOut | null;
+  ecriture: EcritureOut | null;
+  ecart_jours: number | null;
+  explication: string | null;
 };
 
 export type RapprochementOut = {

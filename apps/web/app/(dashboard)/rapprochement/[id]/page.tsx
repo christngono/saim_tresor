@@ -13,6 +13,9 @@ export default async function Page({ params }: { params: { id: string } }) {
   const ctx = await requireCtx();
   const rap = await getRapprochement(params.id, ctx);
   const readOnly = rap.statut === "VALIDE" || rap.statut === "EXPORTE";
+
+  const apparies = rap.matches.filter((m) => !m.type_ecart);
+  const ecarts = rap.matches.filter((m) => m.type_ecart);
   const restants = rap.matches.filter((m) => m.statut === "SUGGERE").length;
   const ecartNonNul = Number(rap.ecart) !== 0;
 
@@ -24,21 +27,22 @@ export default async function Page({ params }: { params: { id: string } }) {
         actions={<><Badge tone={STATUT[rap.statut] ?? "neutral"}>{rap.statut}</Badge><ActionsBar id={rap.id} statut={rap.statut} /></>}
       />
 
-      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
         <StatCard label="Solde relevé" value={fcfa(rap.solde_releve)} />
         <StatCard label="Solde comptable" value={fcfa(rap.solde_comptable)} />
-        <StatCard label="Écart brut" value={fcfa(rap.ecart)} tone={ecartNonNul ? "warning" : "positive"}
-          hint={ecartNonNul ? "expliqué par les écarts ci-dessous" : "aucun écart"} />
+        <StatCard label="Rapprochées auto" value={String(apparies.length)} tone="positive" />
+        <StatCard label="Écarts à instruire" value={String(ecarts.length)} tone={ecarts.length ? "warning" : "neutral"} />
       </div>
 
       {restants > 0 && !readOnly && (
         <div className="mb-5 flex items-center gap-2 rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-800 ring-1 ring-inset ring-amber-200">
           <IconAlert className="h-4 w-4 shrink-0" />
           {restants} élément(s) restent à revoir avant de pouvoir clôturer.
+          {ecartNonNul && <span className="text-amber-600"> · Écart de solde restant : {fcfa(rap.ecart)}</span>}
         </div>
       )}
 
-      <MatchTable matches={rap.matches} readOnly={readOnly} />
+      <MatchTable matches={rap.matches} readOnly={readOnly} rapId={rap.id} />
     </>
   );
 }
