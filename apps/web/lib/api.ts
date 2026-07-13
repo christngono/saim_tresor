@@ -200,8 +200,22 @@ export type TFTOut = {
   statut: string;
   methode: string;
   algo_version: string;
+  periode_debut: string;
+  periode_fin: string;
   donnees: Record<string, any>;
   previsionnel: Record<string, any> | null;
+};
+
+export type TFTListItem = {
+  id: string;
+  methode: string;
+  statut: string;
+  periodeDebut: string;
+  periodeFin: string;
+  variation: string | null;
+  tresorerieCloture: string | null;
+  equilibre: boolean | null;
+  createdAt: string;
 };
 
 export type Forecast = {
@@ -242,6 +256,34 @@ export async function forecastTresorerie(
       method: "POST", headers: headers(ctx), body: JSON.stringify(body),
     }),
     "Prévisionnel indisponible",
+  );
+}
+
+export async function listTFTs(ctx: Ctx): Promise<TFTListItem[]> {
+  return jsonOrThrow(
+    await fetch(`${API}/tfts`, { headers: headers(ctx), cache: "no-store" }),
+    "TFT indisponibles",
+  );
+}
+
+export async function getTFT(ctx: Ctx, id: string): Promise<TFTOut> {
+  return jsonOrThrow(
+    await fetch(`${API}/cashflow/${id}`, { headers: headers(ctx), cache: "no-store" }),
+    "TFT introuvable",
+  );
+}
+
+export async function validerTFT(ctx: Ctx, id: string) {
+  return jsonOrThrow(
+    await fetch(`${API}/cashflow/${id}/valider`, { method: "POST", headers: headers(ctx) }),
+    "Validation impossible",
+  );
+}
+
+export async function exporterTFT(ctx: Ctx, id: string): Promise<{ url: string }> {
+  return jsonOrThrow(
+    await fetch(`${API}/cashflow/${id}/export`, { method: "POST", headers: headers(ctx) }),
+    "Export impossible",
   );
 }
 

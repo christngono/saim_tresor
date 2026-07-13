@@ -1,65 +1,75 @@
-"use client";
+import Link from "next/link";
+import { listTFTs } from "../../../lib/api";
+import { requireCtx } from "../../../lib/session";
+import { PageHeader, Card, Badge, EmptyState, fcfa } from "../../../components/ui";
+import { IconPlus } from "../../../components/ui/icons";
 
-import { useState, useTransition } from "react";
-import type { Forecast, TFTOut } from "../../../lib/api";
-import { buildTFTAction, forecastAction } from "./actions";
-import { TFTView } from "../../../components/cashflow/TFTView";
-import { ForecastView } from "../../../components/cashflow/ForecastView";
-import { IconTFT } from "../../../components/ui/icons";
+const STATUT: Record<string, "neutral" | "warning" | "positive" | "info"> = {
+  BROUILLON: "neutral", EN_REVUE: "warning", VALIDE: "positive", EXPORTE: "info",
+};
 
-export default function Page() {
-  const [tft, setTft] = useState<TFTOut | null>(null);
-  const [forecast, setForecast] = useState<Forecast | null>(null);
-  const [methode, setMethode] = useState("INDIRECTE");
-  const [pending, start] = useTransition();
-  const [erreur, setErreur] = useState<string | null>(null);
-
-  function construire() {
-    start(async () => {
-      setErreur(null);
-      try {
-        const t = await buildTFTAction({
-          periode_debut: "2026-06-30", periode_fin: "2026-06-30",
-          tresorerie_ouverture: "3700000", methode,
-        });
-        setTft(t);
-        setForecast(await forecastAction({ date_reference: "2026-06-30", solde_initial: t.donnees.tresorerie_cloture, seuil_alerte: "0" }));
-      } catch (e) { setErreur((e as Error).message); }
-    });
-  }
+export default async function Page() {
+  const ctx = await requireCtx();
+  const tfts = await listTFTs(ctx);
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight text-slate-900">Flux de trésorerie (TFT)</h1>
-          <p className="mt-1 text-sm text-slate-500">Calcul déterministe SYSCOHADA + prévisionnel glissant.</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <select value={methode} onChange={(e) => setMethode(e.target.value)} className="input w-auto py-2">
-            <option value="INDIRECTE">Méthode indirecte</option>
-            <option value="DIRECTE">Méthode directe</option>
-          </select>
-          <button onClick={construire} disabled={pending} className="btn-primary">
-            <IconTFT className="h-4 w-4" /> {pending ? "Calcul…" : "Construire"}
-          </button>
-        </div>
-      </div>
+    <>
+      <PageHeader
+        title="Flux de trésorerie (TFT)"
+        description="Tableaux des flux SYSCOHADA générés à partir de votre grand livre."
+        actions={
+          <Link href="/tft/importer" className="btn-primary">
+            <IconPlus className="h-4 w-4" /> Importer un grand livre
+          </Link>
+        }
+      />
 
-      {erreur && <p className="rounded-lg bg-rose-50 px-4 py-2 text-sm text-rose-700 ring-1 ring-inset ring-rose-200">{erreur}</p>}
-
-      {!tft && !erreur && (
-        <div className="card flex flex-col items-center gap-2 p-12 text-center">
-          <span className="text-slate-300"><IconTFT className="h-8 w-8" /></span>
-          <p className="font-medium text-slate-700">Aucun TFT généré</p>
-          <p className="max-w-sm text-sm text-slate-400">
-            Le tableau de flux est calculé de façon déterministe à partir des écritures de la période, puis validé par un humain avant export.
-          </p>
-        </div>
+      {tfts.length === 0 ? (
+        <EmptyState
+          title="Aucun TFT généré"
+          hint="Importez votre grand livre complet (classes 1 à 7) et indiquez la trésorerie d'ouverture pour générer votre premier tableau des flux."
+          action={<Link href="/tft/importer" className="btn-primary"><IconPlus className="h-4 w-4" /> Importer un grand livre</Link>}
+        />
+      ) : (
+        <Card className="overflow-hidden">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-slate-100 text-left text-xs uppercase tracking-wide text-slate-500">
+                <th className="px-5 py-3 font-medium">Période</th>
+                <th className="px-5 py-3 font-medium">Méthode</th>
+                <th className="px-5 py-3 font-medium">Contrôle</th>
+                <th className="px-5 py-3 font-medium">Statut</th>
+                <th className="px-5 py-3 text-right font-medium">Variation</th>
+                <th className="px-5 py-3 text-right font-medium">Trésorerie clôture</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {tfts.map((t) => (
+                <tr key={t.id} className="hover:bg-slate-50">
+                  <td className="px-5 py-3.5">
+                    <Link href={`/tft/${t.id}`} className="font-medium text-brand-700 hover:underline">
+                      {t.periodeDebut} → {t.periodeFin}
+                    </Link>
+                  </td>
+                  <td className="px-5 py-3.5 text-slate-600">{t.methode === "DIRECTE" ? "Directe" : "Indirecte"}</td>
+                  <td className="px-5 py-3.5">
+                    <Badge tone={t.equilibre ? "positive" : "negative"}>
+                      {t.equilibre ? "Équilibré" : "Déséquilibré"}
+                    </Badge>
+                  </td>
+                  <td className="px-5 py-3.5"><Badge tone={STATUT[t.statut] ?? "neutral"}>{t.statut}</Badge></td>
+                  <td className={`px-5 py-3.5 text-right tabular ${Number(t.variation) < 0 ? "text-rose-600" : "text-emerald-600"}`}>
+                    {t.variation !== null ? fcfa(t.variation) : "—"}
+                  </td>
+                  <td className="px-5 py-3.5 text-right tabular font-medium text-slate-800">
+                    {t.tresorerieCloture !== null ? fcfa(t.tresorerieCloture) : "—"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Card>
       )}
-
-      {tft && <TFTView tft={tft} />}
-      {forecast && <ForecastView f={forecast} />}
-    </div>
+    </>
   );
 }

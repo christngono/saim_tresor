@@ -23,5 +23,7 @@ class TFTOut(BaseModel):
     statut: str
     methode: str
     algo_version: str
+    periode_debut: date
+    periode_fin: date
     donnees: dict
     previsionnel: dict | None = None

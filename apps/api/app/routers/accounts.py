@@ -33,6 +33,25 @@ async def lister_releves(ctx: Ctx = Depends(get_ctx)):
         ]
 
 
+@router.get("/tfts")
+async def lister_tfts(ctx: Ctx = Depends(get_ctx)):
+    async with tenant_scope(ctx.entreprise_id) as tx:
+        tfts = await tx.tft.find_many(order={"createdAt": "desc"})
+        out = []
+        for t in tfts:
+            d = t.donnees or {}
+            out.append({
+                "id": t.id, "methode": t.methode, "statut": t.statut,
+                "periodeDebut": t.periodeDebut.date().isoformat(),
+                "periodeFin": t.periodeFin.date().isoformat(),
+                "variation": d.get("variation_tresorerie"),
+                "tresorerieCloture": d.get("tresorerie_cloture"),
+                "equilibre": d.get("equilibre"),
+                "createdAt": t.createdAt.isoformat(),
+            })
+        return out
+
+
 @router.get("/rapprochements")
 async def lister_rapprochements(ctx: Ctx = Depends(get_ctx)):
     async with tenant_scope(ctx.entreprise_id) as tx:

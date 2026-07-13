@@ -55,7 +55,8 @@ async def construire(payload: ConstruireTFT, ctx: Ctx = Depends(get_ctx)):
             apres={"variation": tft["variation_tresorerie"], "equilibre": tft["equilibre"]},
         )
         return TFTOut(id=rec.id, statut=rec.statut, methode=rec.methode,
-                      algo_version=rec.algoVersion, donnees=tft)
+                      algo_version=rec.algoVersion, donnees=tft,
+                      periode_debut=rec.periodeDebut.date(), periode_fin=rec.periodeFin.date())
 
 
 @router.post("/forecast")
@@ -81,7 +82,8 @@ async def lire(tft_id: str, ctx: Ctx = Depends(get_ctx)):
             raise HTTPException(404, "TFT introuvable")
         return TFTOut(id=rec.id, statut=rec.statut, methode=rec.methode,
                       algo_version=rec.algoVersion, donnees=rec.donnees,
-                      previsionnel=rec.previsionnel)
+                      previsionnel=rec.previsionnel,
+                      periode_debut=rec.periodeDebut.date(), periode_fin=rec.periodeFin.date())
 
 
 @router.post("/{tft_id}/valider")
