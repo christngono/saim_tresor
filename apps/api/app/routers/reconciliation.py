@@ -15,7 +15,11 @@ import uuid
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 
-from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, UploadFile
+from fastapi import (
+    APIRouter, Depends, File, Form, Header, HTTPException, Response, UploadFile,
+)
+
+XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 from app.audit.logger import log
 from app.core.reconciliation.matcher import BankLine, LedgerEntry, rapprocher
@@ -444,19 +448,26 @@ async def exporter(rap_id: str, ctx: Ctx = Depends(get_ctx)):
         matches = await tx.rapprochementmatch.find_many(where={"rapprochementId": rap_id})
         result = await _rebuild_result(tx, rap, matches)
         etat = construire_etat(result, rap.soldeComptable, rap.soldeReleve)
-        contenu = _etat_vers_xlsx(etat)
-        key = f"{ctx.entreprise_id}/exports/rapprochement-{rap_id}.xlsx"
-        storage.put_object(
-            key, contenu,
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        )
+        contenu = _etat_vers_xlsx(etat)  # CPU pur, aucun appel réseau
+
         await tx.rapprochement.update(where={"id": rap_id}, data={"statut": "EXPORTE"})
         await log(
             tx, entreprise_id=ctx.entreprise_id, acteur="HUMAIN",
             utilisateur_id=ctx.utilisateur_id, action="EXPORTER_RAPPROCHEMENT",
-            entite="rapprochements", entite_id=rap_id, apres={"r2Key": key},
+            entite="rapprochements", entite_id=rap_id, apres={"statut": "EXPORTE"},
         )
-        return {"url": storage.presigned_url(key), "statut": "EXPORTE"}
+
+    # Archivage HORS transaction (best-effort) : voir cashflow.exporter.
+    try:
+        storage.put_object(
+            f"{ctx.entreprise_id}/exports/rapprochement-{rap_id}.xlsx", contenu, XLSX_MIME)
+    except Exception:  # noqa: BLE001
+        pass
+
+    return Response(
+        content=contenu, media_type=XLSX_MIME,
+        headers={"Content-Disposition": f'attachment; filename="rapprochement-{rap_id}.xlsx"'},
+    )
 
 
 # ── Helpers ──

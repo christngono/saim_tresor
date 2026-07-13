@@ -9,7 +9,7 @@ import io
 from datetime import datetime
 from decimal import Decimal
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from prisma import Json
 
 from app.audit.logger import log
@@ -100,24 +100,41 @@ async def valider(tft_id: str, ctx: Ctx = Depends(get_ctx)):
         return {"id": tft_id, "statut": "VALIDE"}
 
 
+XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+
 @router.post("/{tft_id}/export")
 async def exporter(tft_id: str, ctx: Ctx = Depends(get_ctx)):
+    """Génère l'état SYSCOHADA et le renvoie en téléchargement.
+
+    L'archivage sur R2 est *best-effort* : si le stockage est indisponible,
+    l'export reste possible (le fichier est toujours renvoyé au client).
+    """
     async with tenant_scope(ctx.entreprise_id) as tx:
         rec = await tx.tft.find_unique(where={"id": tft_id})
         if rec is None:
             raise HTTPException(404, "TFT introuvable")
         if rec.statut not in ("VALIDE", "EXPORTE"):
             raise HTTPException(409, "Validation humaine requise avant export")
-        contenu = _tft_vers_xlsx(rec.donnees)
-        key = f"{ctx.entreprise_id}/exports/tft-{tft_id}.xlsx"
-        storage.put_object(
-            key, contenu,
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+        contenu = _tft_vers_xlsx(rec.donnees)  # CPU pur, aucun appel réseau
         await tx.tft.update(where={"id": tft_id}, data={"statut": "EXPORTE"})
         await log(tx, entreprise_id=ctx.entreprise_id, acteur="HUMAIN",
                   utilisateur_id=ctx.utilisateur_id, action="EXPORTER_TFT",
-                  entite="tfts", entite_id=tft_id, apres={"r2Key": key})
-        return {"url": storage.presigned_url(key), "statut": "EXPORTE"}
+                  entite="tfts", entite_id=tft_id, apres={"statut": "EXPORTE"})
+
+    # Archivage HORS transaction : un appel réseau lent ne doit jamais faire
+    # expirer la transaction Prisma. Best-effort : l'export reste servi.
+    try:
+        storage.put_object(
+            f"{ctx.entreprise_id}/exports/tft-{tft_id}.xlsx", contenu, XLSX_MIME)
+    except Exception:  # noqa: BLE001 — stockage indisponible : sans conséquence
+        pass
+
+    return Response(
+        content=contenu, media_type=XLSX_MIME,
+        headers={"Content-Disposition": f'attachment; filename="tft-{tft_id}.xlsx"'},
+    )
 
 
 def _tft_vers_xlsx(d: dict) -> bytes:

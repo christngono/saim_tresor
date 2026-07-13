@@ -23,12 +23,8 @@ export async function validerRapprochementAction(id: string) {
   revalidatePath(`/rapprochement/${id}`);
 }
 
-export async function exporterAction(id: string): Promise<string> {
-  const ctx = await requireCtx();
-  const { url } = await api.exporterRapprochement(ctx, id);
-  revalidatePath(`/rapprochement/${id}`);
-  return url;
-}
+// L'export passe par la route /api/export/rapprochement/[id] (téléchargement
+// direct du fichier renvoyé par l'API) — plus de dépendance à un stockage objet.
 
 /** Import CSV du grand livre + du relevé → rapprochement → redirection.
  *  Voie 100 % déterministe : ni LLM, ni stockage R2. */

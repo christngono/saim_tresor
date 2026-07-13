@@ -10,7 +10,14 @@ _client = boto3.client(
     aws_access_key_id=settings.r2_access_key_id,
     aws_secret_access_key=settings.r2_secret_access_key,
     region_name=settings.r2_region,
-    config=Config(signature_version="s3v4"),
+    # Échec rapide : un stockage indisponible ne doit pas faire traîner l'appel
+    # (ni, a fortiori, expirer une transaction en base).
+    config=Config(
+        signature_version="s3v4",
+        connect_timeout=2,
+        read_timeout=5,
+        retries={"max_attempts": 1},
+    ),
 )
 
 

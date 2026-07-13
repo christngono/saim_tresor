@@ -1,13 +1,14 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { exporterTFTAction, validerTFTAction } from "../../app/(dashboard)/tft/actions";
+import { useRouter } from "next/navigation";
+import { validerTFTAction } from "../../app/(dashboard)/tft/actions";
 import { IconCheck, IconUpload } from "../ui/icons";
 
 export function TFTActionsBar({ id, statut }: { id: string; statut: string }) {
   const [pending, start] = useTransition();
-  const [url, setUrl] = useState<string | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
+  const router = useRouter();
   const valide = statut === "VALIDE" || statut === "EXPORTE";
 
   return (
@@ -22,15 +23,12 @@ export function TFTActionsBar({ id, statut }: { id: string; statut: string }) {
         </button>
       )}
       {valide && (
-        <button disabled={pending} className="btn-secondary"
-          onClick={() => start(async () => {
-            setErreur(null);
-            try { setUrl(await exporterTFTAction(id)); } catch (e) { setErreur((e as Error).message); }
-          })}>
+        // Téléchargement direct : l'API renvoie le .xlsx, aucun stockage requis.
+        <a href={`/api/export/tft/${id}`} download className="btn-secondary"
+          onClick={() => setTimeout(() => router.refresh(), 1200)}>
           <IconUpload className="h-4 w-4" /> Exporter (.xlsx)
-        </button>
+        </a>
       )}
-      {url && <a href={url} className="text-sm font-medium text-brand-700 hover:underline">Télécharger</a>}
       {erreur && <span className="text-sm text-rose-600">{erreur}</span>}
     </div>
   );

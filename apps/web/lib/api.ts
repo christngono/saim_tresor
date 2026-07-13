@@ -187,13 +187,6 @@ export async function validerRapprochement(ctx: Ctx, id: string) {
   );
 }
 
-export async function exporterRapprochement(ctx: Ctx, id: string): Promise<{ url: string }> {
-  return jsonOrThrow(
-    await fetch(`${API}/reconciliation/${id}/export`, { method: "POST", headers: headers(ctx) }),
-    "Export impossible",
-  );
-}
-
 // ── Module 2 : TFT ──
 export type TFTOut = {
   id: string;
@@ -277,13 +270,6 @@ export async function validerTFT(ctx: Ctx, id: string) {
   return jsonOrThrow(
     await fetch(`${API}/cashflow/${id}/valider`, { method: "POST", headers: headers(ctx) }),
     "Validation impossible",
-  );
-}
-
-export async function exporterTFT(ctx: Ctx, id: string): Promise<{ url: string }> {
-  return jsonOrThrow(
-    await fetch(`${API}/cashflow/${id}/export`, { method: "POST", headers: headers(ctx) }),
-    "Export impossible",
   );
 }
 

@@ -31,9 +31,5 @@ export async function validerTFTAction(id: string) {
   revalidatePath(`/tft/${id}`);
 }
 
-export async function exporterTFTAction(id: string): Promise<string> {
-  const ctx = await requireCtx();
-  const { url } = await api.exporterTFT(ctx, id);
-  revalidatePath(`/tft/${id}`);
-  return url;
-}
+// L'export passe par la route /api/export/tft/[id] (téléchargement direct du
+// fichier renvoyé par l'API) — plus de dépendance à un stockage objet.
